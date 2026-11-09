@@ -1,0 +1,119 @@
+[
+  {
+    "type": "single",
+    "stem": "计算机中，1 字节（Byte）等于多少位（bit）？",
+    "options": ["4 位", "8 位", "16 位", "32 位"],
+    "answer": "8 位",
+    "score": 2,
+    "analysis": "1 Byte = 8 bit，这是计算机存储的最小换算关系。",
+    "knowledge_point": "数据表示",
+    "difficulty": "easy"
+  },
+  {
+    "type": "single",
+    "stem": "下列哪一项属于操作系统？",
+    "options": ["MySQL", "Windows", "Chrome", "Photoshop"],
+    "answer": "Windows",
+    "score": 2,
+    "analysis": "Windows 是操作系统；MySQL 是数据库，Chrome 是浏览器，Photoshop 是图像软件。",
+    "knowledge_point": "操作系统",
+    "difficulty": "easy"
+  },
+  {
+    "type": "multiple",
+    "stem": "下列哪些属于常见的网络拓扑结构？（多选）",
+    "options": ["总线型", "星型", "环型", "矩阵型"],
+    "answer": ["总线型", "星型", "环型"],
+    "score": 3,
+    "analysis": "常见拓扑为总线型、星型、环型、网状；矩阵型不是标准拓扑分类。",
+    "knowledge_point": "计算机网络基础",
+    "difficulty": "medium"
+  },
+  {
+    "type": "judge",
+    "stem": "IP 地址 192.168.1.1 属于 C 类私有地址。",
+    "options": ["正确", "错误"],
+    "answer": "正确",
+    "score": 2,
+    "analysis": "192.168.0.0/16 属于 C 类私有地址段。",
+    "knowledge_point": "IP 地址",
+    "difficulty": "medium"
+  },
+  {
+    "type": "judge",
+    "stem": "HTTP 协议默认使用 443 端口。",
+    "options": ["正确", "错误"],
+    "answer": "错误",
+    "score": 2,
+    "analysis": "HTTP 默认 80 端口，HTTPS 默认 443 端口。",
+    "knowledge_point": "计算机网络基础",
+    "difficulty": "easy"
+  },
+  {
+    "type": "blank",
+    "stem": "OSI 参考模型共分为 ______ 层。",
+    "answer": ["7", "七"],
+    "score": 2,
+    "analysis": "OSI 七层：物理、数据链路、网络、传输、会话、表示、应用。",
+    "knowledge_point": "网络体系结构",
+    "difficulty": "medium"
+  },
+  {
+    "type": "blank",
+    "stem": "在关系数据库中，用于唯一标识一条记录的字段称为 ______。",
+    "answer": ["主键", "primary key"],
+    "score": 2,
+    "analysis": "主键用于唯一标识记录，且不可重复、不可为空。",
+    "knowledge_point": "数据库基础",
+    "difficulty": "easy"
+  },
+  {
+    "type": "blank",
+    "stem": "植物通过 ______ 作用把光能转化为化学能。",
+    "answer": ["光合", "光合作用"],
+    "score": 2,
+    "analysis": "演示「智能宽松」判题：学生答「光合作用」或「光合」均判对，答「植物的光合作用」由归一化后可判对。",
+    "knowledge_point": "生物基础",
+    "difficulty": "easy"
+  },
+  {
+    "type": "short",
+    "stem": "简述 TCP 三次握手的过程，并说明为什么需要三次而不是两次。",
+    "answer": "第一次：客户端发送 SYN=1，seq=x；第二次：服务端回复 SYN=1、ACK=1，seq=y，ack=x+1；第三次：客户端发送 ACK=1，ack=y+1。两次握手无法确认服务端能否收到客户端后续数据，也可能因历史连接请求造成伪连接，三次可双向确认并防止失效连接请求突然到达。",
+    "score": 10,
+    "points": ["能说出三次交互的报文顺序（SYN、SYN+ACK、ACK）", "说明两次握手无法双向确认", "提到失效/历史连接请求的风险"],
+    "analysis": "评分为得分点命中制：三点全中 10 分，命中两点 7 分，命中一点 4 分，全不中 0 分。",
+    "knowledge_point": "TCP 协议",
+    "difficulty": "hard"
+  },
+  {
+    "type": "short",
+    "stem": "什么是数据库索引？它为什么能加快查询，又为什么会带来额外开销？",
+    "answer": "索引是一种额外的数据结构（如 B+ 树），按键值组织数据位置，使查询可快速定位而不必全表扫描。代价是需要额外存储空间，且每次增删改都要同步维护索引，写入性能下降。",
+    "score": 10,
+    "points": ["说明索引是一种辅助数据结构（如 B+ 树）", "说明加快查询的原因是减少扫描范围", "说明额外存储与写入维护开销"],
+    "analysis": "三点全中 10 分，命中两点 7 分，命中一点 4 分。",
+    "knowledge_point": "数据库基础",
+    "difficulty": "medium"
+  },
+  {
+    "type": "essay",
+    "stem": "结合你使用在线考试系统的经历，谈谈这类系统在公平性与易用性之间应如何取舍。（不少于 200 字）",
+    "answer": "参考要点：公平性方面需考虑题目随机化、防抄袭、判分标准统一、成绩可复核；易用性方面需考虑入口简洁、提醒到位、作答不中断、成绩反馈及时。二者冲突时优先保证成绩可追溯与判分依据可查，用技术手段（如判分依据展示、教师复核）替代不可靠的监控手段。",
+    "score": 15,
+    "points": ["公平性措施（随机组卷/统一标准/可复核）", "易用性措施（入口/提醒/作答体验）", "冲突时的取舍原则与具体做法"],
+    "analysis": "按得分点覆盖度评分，并结合表达完整性给出档位。",
+    "knowledge_point": "",
+    "difficulty": ""
+  },
+  {
+    "type": "single",
+    "stem": "在 HTML 中，用于定义页面标题的标签是？",
+    "options": ["<head>", "<title>", "<header>", "<h1>"],
+    "answer": "<title>",
+    "score": 2,
+    "analysis": "<title> 定义浏览器标签页标题；<h1> 是页面内容一级标题。",
+    "knowledge_point": "",
+    "difficulty": ""
+  }
+]
