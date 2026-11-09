@@ -1,0 +1,30 @@
+# 青芽 SproutLearn · 开发环境覆盖补丁
+# 本文件是覆盖补丁，不是独立 compose：必须与主文件同时传入两个 -f！
+#   docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.dev.yml up -d
+name: sproutlearn-dev
+
+services:
+  mysql:
+    ports: ["127.0.0.1:13306:3306"]
+
+  redis:
+    ports: ["127.0.0.1:16379:6379"]
+
+  qdrant:
+    ports: ["127.0.0.1:6333:6333", "127.0.0.1:6334:6334"]
+
+  api:
+    build: ../backend
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    ports: ["127.0.0.1:8000:8000"]
+    volumes:
+      - ../backend:/app
+      - ../uploads:/data/uploads
+    environment:
+      APP_ENV: dev
+      MYSQL_HOST: mysql
+      REDIS_HOST: redis
+      QDRANT_HOST: qdrant
+
+  web:
+    profiles: ["no-web"]        # 开发时前端在宿主机跑 vite，不用容器
