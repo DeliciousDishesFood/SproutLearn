@@ -33,7 +33,7 @@
 
 - Docker Desktop（含 Docker Compose v2）
 - Python 3.11（仅本地跑测试/调试时需要）
-- Node 18+（前端窗口使用，本仓库后端不依赖）
+- Node 18+（构建前端静态产物时需要）
 
 ## 一键启动（生产 compose）
 
@@ -110,9 +110,16 @@ pytest -q
 M1 不内置演示数据初始化功能。执行顺序：
 
 1. `deploy/db/schema.sql` 或 `alembic upgrade head`
-2. `E:\ai-dev-projects\智能助学平台\docs\demo\seed_data.sql`
+2. `docs/demo/seed_data.sql`（可重复执行，脚本自带删除段）
 
-说明脚本：`backend/app/scripts/seed_demo.py`（只打印路径，不执行数据写入）。
+演示账号（密码统一 `Demo@123`）：
+
+| 角色 | 登录方式 |
+|---|---|
+| 教师 | `demo.teacher@school.edu.cn` |
+| 学生 | 班级编号 `C26A79` + 学号 `20260101` |
+
+题库演示数据：`docs/demo/题库演示数据.json`（通过系统导入功能加载，不写库）。
 
 ## 常见问题
 
@@ -128,21 +135,46 @@ M1 不内置演示数据初始化功能。执行顺序：
 
 ```text
 SproutLearn/
-├── backend/                 # FastAPI 后端（本窗口）
+├── backend/                 # FastAPI 后端
 │   ├── app/                 # 路由/服务/仓储/模型/策略
 │   ├── alembic/             # 初始迁移
 │   ├── tests/               # pytest 冒烟
 │   ├── Dockerfile
 │   └── requirements.txt
+├── frontend/                # Vue3 + TS 前端
+│   ├── src/                 # 页面/组件/api/styles
+│   ├── Dockerfile           # node 构建 → nginx 托管
+│   └── .env.development / .env.production
 ├── deploy/
 │   ├── docker-compose.yml
 │   ├── docker-compose.dev.yml
 │   ├── db/schema.sql
 │   └── nginx/
+├── docs/                    # 需求与工程文档（见下节）
 ├── .env.example
 ├── .gitignore
 └── README.md
 ```
+
+## 文档索引
+
+| 文档 | 内容 |
+|---|---|
+| `docs/智能助学平台M1落地需求文档（V1.0）.md` | M1 唯一实现契约：13 表 / 20 接口 / 36 条验收 / 错误码 / 部署（含变更单 C-001、C-002） |
+| `docs/智能助学平台产品需求文档（V1.2）.md` | 产品需求与班级编号、学生登录口径 |
+| `docs/PRD变更清单.md` | PRD V1.1 → V1.2 的 14 条变更 |
+| `docs/技术债与迭代计划（M1→M2）.md` | 技术债 TD-01～TD-13 与迭代节奏 |
+| `docs/项目决策日志.md` | 已拍板决策（含 M1 账号模型定版、M2 邮箱体系方向） |
+| `docs/M2学生邮箱账号体系升级需求（草案）.md` | M2 账号体系演进草案 |
+
+## 开发记录与提交规范
+
+- 仓库初始为 **Private**，M1 验收完成后转 Public；提交历史即开发记录。
+- 提交信息遵循 Conventional Commits：`feat(scope) / fix(scope) / docs / test / chore`，
+  正文用 `-` 列出改动点，一次提交只做一件事。
+- 分支：`main` 保持可运行；实验性改动另开分支，合并前跑 `pytest` 与 `npm run build`。
+- 敏感配置（`.env`、SMTP 授权码、数据库密码、密钥）一律不入库；提交前做敏感值扫描。
+- 演示数据与题库 JSON 放在 `docs/demo/`，可重复执行，不依赖系统内置初始化功能。
 
 ## 安全与约束
 
@@ -150,4 +182,4 @@ SproutLearn/
 - 业务阈值/时长/条数/长度全部走 `.env`；代码中只保留流程常量。
 - 所有仓储查询带 `class_id` 作用域；越权返回 `40302`，不泄露跨班数据。
 - M1 不引入 MinIO / OSS / K8s / 消息队列 / Celery，不做管理员角色、多学校入驻。
-- 验收清单：`E:\ai-dev-projects\智能助学平台\dev-docs\智能助学平台M1落地需求文档（V1.0）.md` 第 11 章。
+- 验收清单：`docs/智能助学平台M1落地需求文档（V1.0）.md` 第 11 章。
