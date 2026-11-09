@@ -1,0 +1,10 @@
+# 统一换行规则：文本按内容自动判定，脚本/批处理固定换行，二进制不转换
+* text=auto
+*.sh text eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.zip binary
