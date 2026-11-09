@@ -1,0 +1,10 @@
+# 不进入镜像的本地文件
+.env
+.env.*
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+tests/
+uploads/
+*.log

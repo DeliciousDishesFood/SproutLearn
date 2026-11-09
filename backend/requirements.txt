@@ -1,0 +1,22 @@
+# 青芽 SproutLearn 后端依赖（版本锁定，禁止使用 ^ / ~ 漂移）
+fastapi==0.115.6
+uvicorn[standard]==0.32.1
+pydantic==2.10.4
+pydantic-settings==2.7.0
+SQLAlchemy==2.0.36
+PyMySQL==1.1.1
+alembic==1.14.0
+redis==5.2.1
+PyJWT==2.10.1
+bcrypt==4.2.1
+python-multipart==0.0.20
+loguru==0.7.3
+pdfplumber==0.11.4
+pypdf==5.1.0
+python-docx==1.1.2
+python-pptx==1.0.2
+httpx==0.28.1
+tzdata==2024.2
+# 测试依赖（M1 冒烟测试随应用依赖一起锁定）
+pytest==8.3.4
+fakeredis==2.26.2
