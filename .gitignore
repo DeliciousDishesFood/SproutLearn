@@ -1,0 +1,45 @@
+# 青芽 SproutLearn 忽略规则
+# 环境与密钥（.env 一律不入库；前端构建配置无密钥，放行）
+.env
+.env.*
+!.env.example
+# 前端 Vite 构建/联调配置：只有接口地址与上传上限，无密钥，必须入仓保证可复现
+!frontend/.env.development
+!frontend/.env.production
+*.pem
+*.key
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# 运行产物
+uploads/
+backend/uploads/
+*.log
+logs/
+screenshots/
+build/
+dist/
+
+# 前端
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# 编辑器 / 系统
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# 部署数据卷（如存在）
+deploy/mysql_data/
+deploy/redis_data/
+deploy/qdrant_data/
