@@ -1,0 +1,60 @@
+/* =====================================================================
+   青芽 SproutLearn · 设计 token（唯一色值来源，契约 §10.2）
+   组件内禁止写 hex / 成品 UI 库色板；所有组件只引用这里的 CSS 变量。
+   ===================================================================== */
+:root {
+  /* 底色：暖白，不用纯白满屏，不用默认灰 #f5f5f5 */
+  --color-bg: #f6f4ef;
+  --color-surface: #ffffff;
+  --color-surface-alt: #fbfaf7;
+  --color-border: #e3ded3;
+  --color-border-strong: #cfc8b8;
+
+  /* 文字 */
+  --color-text: #1f2421;
+  --color-text-muted: #6c7570;
+  --color-text-inverse: #f7f5ef;
+
+  /* 主色（墨绿，教育场景稳重）与强调色（暖金） */
+  --color-primary: #2f6f62;
+  --color-primary-hover: #275b50;
+  --color-primary-soft: #e6f0ec;
+  --color-accent: #c9a227;
+  --color-success: #3f8f5b;
+  --color-warning: #c9852b;
+  --color-danger: #b4472f;
+
+  /* 排版 */
+  --font-sans: "Inter", "Source Han Sans SC", "Microsoft YaHei", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "Consolas", monospace;
+  --fs-xs: 12px;
+  --fs-sm: 13px;
+  --fs-base: 14px;
+  --fs-lg: 16px;
+  --fs-xl: 20px;
+  --fs-2xl: 26px;
+  --lh-base: 1.6;
+
+  /* 间距（4 的倍数） */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --sp-7: 48px;
+
+  /* 圆角与阴影（不用大圆角糖果风） */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xs: 6px;
+  --shadow-1: 0 1px 2px rgba(31, 36, 33, 0.06);
+  --shadow-2: 0 8px 24px rgba(31, 36, 33, 0.08);
+
+  /* 布局尺寸 */
+  --sidebar-w: 240px;
+  --topbar-h: 56px;
+  --content-max: 1200px;
+  --row-h: 52px;
+}
