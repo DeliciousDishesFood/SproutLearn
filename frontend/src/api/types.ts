@@ -197,12 +197,25 @@ export interface KnowledgeChunk {
   content: string
 }
 
-// ---------------- API-17 / API-19 QQ 绑定 ----------------
+// ---------------- API-17 / API-18 / API-19 QQ 绑定 ----------------
 
 export interface QqBindCode {
   code: string
   expires_in: number
   expires_at: string
+}
+
+/**
+ * API-18 QQ 绑定回调响应（仅机器人服务端以 X-Bot-Secret 调用）。
+ * Web 前端不发起、不消费该接口；此处按契约 §7 与后端实际响应声明，
+ * 供机器人/联调侧复用类型，并保证 §7 字段核对完整。
+ */
+export interface QqBindCallbackResult {
+  student_id: number
+  student_no: string
+  class_id: number
+  class_code: string
+  bound_at: string
 }
 
 // ---------------- 查询参数 ----------------
