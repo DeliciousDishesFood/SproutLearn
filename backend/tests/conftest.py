@@ -56,6 +56,13 @@ os.environ.update(
         "RATE_LIMIT_INVITE_RESET": "100/3600",
         "RATE_LIMIT_UPLOAD": "100/3600",
         "LOG_LEVEL": "WARNING",
+        # M2A：单测不得触碰真实厂商 key / 真实计费
+        "AMD_API_KEY": "",
+        "ZHIPU_API_KEY": "",
+        "DEEPSEEK_API_KEY": "",
+        "OPENROUTER_API_KEY": "",
+        "JEV_APPKEY": "",
+        "JEV_ENABLED": "false",
     }
 )
 

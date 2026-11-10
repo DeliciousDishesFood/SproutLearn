@@ -95,12 +95,36 @@ class Settings(BaseSettings):
     # ---------- 机器人（M2+ 占位，M1 仅回调鉴权） ----------
     bot_shared_secret: str = ""
 
-    # ---------- 模型（M2+ 占位，代码不引用） ----------
+    # ---------- 模型路由（M2A） ----------
+    llm_chain: str = "amd,zhipu,deepseek"
+    llm_timeout_seconds: int = 15
+    llm_max_retries: int = 1
+    amd_base_url: str = "https://developer.amd.com.cn/radeon/api/v1"
+    amd_api_key: str = ""
+    amd_model: str = "DeepSeek-V4-Flash"
+    zhipu_base_url: str = "https://open.bigmodel.cn/api/coding/paas/v4"
+    zhipu_api_key: str = ""
+    zhipu_model: str = "glm-4.5-flash"
+    zhipu_model_fallback: str = "glm-4.7-flash"
+    deepseek_base_url: str = "https://api.deepseek.com"
+    deepseek_api_key: str = ""
+    deepseek_model: str = "DeepSeek-V4.1-Flash"
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
+    openrouter_api_key: str = ""
+
+    # ---------- Jev 判分内核（M2A，独立链路） ----------
+    jev_enabled: bool = True
+    jev_base_url: str = "https://jev.showapi.com"
+    jev_gateway_url: str = "https://route.showapi.com/3627-1"
+    jev_appkey: str = ""
+    jev_model: str = "JevK5-V0.3"
+    jev_timeout_seconds: int = 8
+    jev_fallback_to_llm: bool = True
+
+    # ---------- 兼容 M1 旧变量（新代码不读取） ----------
     llm_api_key: str = ""
     llm_base_url: str = ""
     llm_model: str = ""
-    jev_model: str = "typesafe/jev-1.14"
-    jev_enabled: bool = False
 
     # ---------- 分页 ----------
     pagination_default_size: int
@@ -124,6 +148,11 @@ class Settings(BaseSettings):
     def allowed_ext_set(self) -> set[str]:
         """上传白名单集合（小写、无点）。"""
         return {item for item in self.upload_allowed_ext.split(",") if item}
+
+    @property
+    def llm_chain_list(self) -> list[str]:
+        """LLM_CHAIN 解析为去空、去重、保序的厂商标识列表。"""
+        return list(dict.fromkeys(item.strip().lower() for item in self.llm_chain.split(",") if item.strip()))
 
     @property
     def max_upload_bytes(self) -> int:
@@ -170,6 +199,8 @@ class Settings(BaseSettings):
             "qdrant_host": self.qdrant_host,
             "upload_dir": self.upload_dir,
             "vector_index_enabled": self.vector_index_enabled,
+            "llm_chain": self.llm_chain_list,
+            "jev_enabled": self.jev_enabled,
         }
 
 

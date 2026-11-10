@@ -16,6 +16,7 @@ from app.logging_config import setup_logging
 from app.middleware.request_id import RequestIdMiddleware
 from app.middleware.request_log import RequestLogMiddleware
 from app.routers import auth, binding, classes, health, knowledge
+from app.services.llm.registry import validate_chain
 from app.utils.response import fail
 
 settings = get_settings()
@@ -23,10 +24,12 @@ settings = get_settings()
 
 def create_app() -> FastAPI:
     setup_logging()
+    # M2A：未知 LLM_CHAIN 标识在启动期直接失败（只构造，不发网络请求）
+    validate_chain(settings)
     application = FastAPI(
         title=settings.app_name,
         version=settings.app_version,
-        description="青芽 SproutLearn M1 后端 API（字段与契约 §7 一致）",
+        description="青芽 SproutLearn M1/M2A 后端 API（M1 字段与契约 §7 一致）",
     )
 
     application.add_middleware(
