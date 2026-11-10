@@ -98,6 +98,7 @@ class Settings(BaseSettings):
     # ---------- 模型路由（M2A） ----------
     llm_chain: str = "amd,zhipu,deepseek"
     llm_timeout_seconds: int = 15
+    llm_explain_timeout_seconds: int = 45
     llm_max_retries: int = 1
     amd_base_url: str = "https://developer.amd.com.cn/radeon/api/v1"
     amd_api_key: str = ""
@@ -129,6 +130,12 @@ class Settings(BaseSettings):
     # ---------- 分页 ----------
     pagination_default_size: int
     pagination_max_size: int
+
+    # ---------- M2B 题库/作答 ----------
+    question_import_max_mb: int = 10
+    question_import_max_rows: int = 500
+    question_import_token_ttl_seconds: int = 1800
+    grading_concurrency: int = 5
 
     # ---------- 其他 ----------
     tz: str = "Asia/Shanghai"

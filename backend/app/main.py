@@ -15,7 +15,7 @@ from app.exceptions import AppException, ErrorCode
 from app.logging_config import setup_logging
 from app.middleware.request_id import RequestIdMiddleware
 from app.middleware.request_log import RequestLogMiddleware
-from app.routers import auth, binding, classes, health, knowledge
+from app.routers import attempts, auth, binding, classes, health, knowledge, papers, questions
 from app.services.llm.registry import validate_chain
 from app.utils.response import fail
 
@@ -29,7 +29,7 @@ def create_app() -> FastAPI:
     application = FastAPI(
         title=settings.app_name,
         version=settings.app_version,
-        description="青芽 SproutLearn M1/M2A 后端 API（M1 字段与契约 §7 一致）",
+        description="青芽 SproutLearn M1/M2A/M2B 后端 API（M1 字段与契约 §7 一致）",
     )
 
     application.add_middleware(
@@ -48,6 +48,9 @@ def create_app() -> FastAPI:
     application.include_router(classes.router, prefix="/api/v1")
     application.include_router(knowledge.router, prefix="/api/v1")
     application.include_router(binding.router, prefix="/api/v1")
+    application.include_router(questions.router, prefix="/api/v1")
+    application.include_router(papers.router, prefix="/api/v1")
+    application.include_router(attempts.router, prefix="/api/v1")
     application.include_router(health.router)
     # 派工词要求 /api/v1/health；契约 API-20 为 /health。别名不进入 OpenAPI，保持 20 接口不变。
     application.add_api_route(

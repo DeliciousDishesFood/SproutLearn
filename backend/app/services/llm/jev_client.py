@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
+from threading import BoundedSemaphore
 from typing import Any
 from urllib.parse import quote
 
@@ -12,6 +13,8 @@ import httpx
 from app.config import Settings, get_settings
 
 JEV_TRUE_THRESHOLD = 0.85
+# 单进程 Jev 判分并发上限（P2 要求 ≤5）
+_JEV_SEMAPHORE = BoundedSemaphore(5)
 
 
 class JevUnavailable(Exception):
@@ -140,7 +143,8 @@ class JevClient:
             headers = {"Content-Type": "application/json"}
         started = time.perf_counter()
         try:
-            response = self._client.post(url, json=payload, headers=headers, timeout=self.timeout_seconds)
+            with _JEV_SEMAPHORE:
+                response = self._client.post(url, json=payload, headers=headers, timeout=self.timeout_seconds)
         except httpx.TimeoutException as exc:
             raise JevUnavailable("timeout") from exc
         except httpx.HTTPError as exc:

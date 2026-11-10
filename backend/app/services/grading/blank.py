@@ -229,6 +229,8 @@ def grade_blank(
         )
     correct = answer.as_bool(JEV_TRUE_THRESHOLD)
     confidence = compose_confidence(answer.confidence, 1.0, 0.0)
+    # 模型自身置信度偏低时也进入人工复核（M2B 低置信样本口径）
+    review = needs_review(confidence) or float(answer.confidence) < 0.6
     return BlankOutcome(
         score=round(float(full_score if correct else 0.0), 2),
         full_score=round(float(full_score), 2),
@@ -236,7 +238,7 @@ def grade_blank(
         basis=f"填空 AI 语义等价（Jev noul，阈值 {JEV_TRUE_THRESHOLD}）",
         deductions=[] if correct else ["Jev 判定不等价"],
         confidence=confidence,
-        needs_review=needs_review(confidence),
+        needs_review=review,
         engine="jev",
         degraded=False,
         raw={
