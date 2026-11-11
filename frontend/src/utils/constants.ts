@@ -222,7 +222,7 @@ export const ATTEMPT_STATUS_META: Record<
   graded: { label: '已复核', tone: 'success' },
 }
 
-/** 题库导入只接受 JSON / XLSX。 */
-export const QUESTION_IMPORT_ACCEPT = '.json,.xlsx'
+/** 题库导入接受 JSON / XLSX / XLS / CSV（表头可由后端同义词识别）。 */
+export const QUESTION_IMPORT_ACCEPT = '.json,.xlsx,.xls,.csv'
 export const QUESTION_IMPORT_MAX_MB = 10
 

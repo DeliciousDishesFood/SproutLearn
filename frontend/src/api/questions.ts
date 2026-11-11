@@ -1,14 +1,116 @@
-// 题库接口（M2-C）：导入预览/提交、筛选列表、编辑、软删除、讲评。
-import { api } from '@/api/client'
+// 题库接口（M2-C/M2.5）：导入预览/提交、筛选列表、编辑、软删除、讲评（含流式）。
+import { api, ApiError } from '@/api/client'
 import type {
   Paged,
   QuestionExplainResult,
   QuestionImportCommit,
+  QuestionImportCommitPayload,
   QuestionImportPreview,
   QuestionItem,
   QuestionListQuery,
   QuestionUpdatePayload,
 } from '@/api/types'
+import { API_BASE_URL, STORAGE_KEYS } from '@/utils/constants'
+
+interface ExplainStreamPayload {
+  engine?: string
+  model?: string | null
+  content?: string
+  degraded?: boolean
+  elapsed_ms?: number
+}
+
+export interface ExplainStreamHandlers {
+  onMeta?: (payload: { engine?: string; model?: string | null }) => void
+  onDelta: (content: string) => void
+  onDone?: (payload: {
+    engine?: string
+    degraded?: boolean
+    elapsed_ms?: number
+  }) => void
+}
+
+export interface ExplainStreamHandle {
+  promise: Promise<void>
+  abort: () => void
+}
+
+function parseSseBlock(block: string): { event: string; payload: ExplainStreamPayload } | null {
+  let event = 'message'
+  const dataLines: string[] = []
+  for (const line of block.split(/\r?\n/)) {
+    if (!line || line.startsWith(':')) continue
+    if (line.startsWith('event:')) {
+      event = line.slice(6).trim()
+    } else if (line.startsWith('data:')) {
+      dataLines.push(line.slice(5).replace(/^ /, ''))
+    }
+  }
+  if (dataLines.length === 0) return null
+  try {
+    return { event, payload: JSON.parse(dataLines.join('\n')) as ExplainStreamPayload }
+  } catch {
+    return null
+  }
+}
+
+async function readExplainStream(
+  questionId: number,
+  studentAnswer: unknown,
+  handlers: ExplainStreamHandlers,
+  signal: AbortSignal,
+): Promise<void> {
+  const token = localStorage.getItem(STORAGE_KEYS.token)
+  const response = await fetch(`${API_BASE_URL}/questions/${questionId}/explain/stream`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'text/event-stream',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(studentAnswer === undefined ? {} : { student_answer: studentAnswer }),
+    signal,
+  })
+
+  const contentType = response.headers.get('content-type') ?? ''
+  if (!response.ok || !contentType.includes('text/event-stream') || !response.body) {
+    let message = '讲评流暂时不可用'
+    try {
+      const body = (await response.json()) as { code?: number; message?: string }
+      if (body && typeof body.message === 'string' && body.message) message = body.message
+    } catch {
+      // 非 JSON 响应保持默认文案
+    }
+    throw new ApiError({ code: -1, message, httpStatus: response.status })
+  }
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  const dispatch = (block: string): void => {
+    const parsed = parseSseBlock(block)
+    if (!parsed) return
+    const { event, payload } = parsed
+    if (event === 'meta') {
+      handlers.onMeta?.(payload)
+    } else if (event === 'done') {
+      handlers.onDone?.(payload)
+    } else if (event === 'delta') {
+      handlers.onDelta(payload.content ?? '')
+    }
+  }
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    const blocks = buffer.split(/\r?\n\r?\n/)
+    buffer = blocks.pop() ?? ''
+    for (const block of blocks) dispatch(block)
+  }
+  buffer += decoder.decode()
+  if (buffer.trim()) dispatch(buffer)
+}
 
 export const questionsApi = {
   previewImport(classId: number, file: File): Promise<QuestionImportPreview> {
@@ -21,12 +123,14 @@ export const questionsApi = {
     )
   },
 
-  commitImport(classId: number, token: string): Promise<QuestionImportCommit> {
-    return api.post<QuestionImportCommit>(
-      `/classes/${classId}/questions/import/commit`,
-      { token },
-      { timeout: 0, skipGlobalError: true },
-    )
+  commitImport(
+    classId: number,
+    payload: QuestionImportCommitPayload,
+  ): Promise<QuestionImportCommit> {
+    return api.post<QuestionImportCommit>(`/classes/${classId}/questions/import/commit`, payload, {
+      timeout: 0,
+      skipGlobalError: true,
+    })
   },
 
   list(classId: number, query: QuestionListQuery = {}): Promise<Paged<QuestionItem>> {
@@ -60,5 +164,18 @@ export const questionsApi = {
       studentAnswer === undefined ? {} : { student_answer: studentAnswer },
       { timeout: 60000, skipGlobalError: true },
     )
+  },
+
+  /** M2.5 流式讲评：SSE（meta → delta… → done），失败时由调用方保留已收内容。 */
+  explainStream(
+    questionId: number,
+    handlers: ExplainStreamHandlers,
+    studentAnswer?: unknown,
+  ): ExplainStreamHandle {
+    const controller = new AbortController()
+    return {
+      promise: readExplainStream(questionId, studentAnswer, handlers, controller.signal),
+      abort: () => controller.abort(),
+    }
   },
 }

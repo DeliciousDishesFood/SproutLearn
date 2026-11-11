@@ -264,13 +264,56 @@ export interface QuestionImportError {
   message: string
 }
 
+/** 导入标准字段（与后端 mapping 目标值一致）。 */
+export type ImportStandardField =
+  | 'type'
+  | 'stem'
+  | 'options'
+  | 'answer'
+  | 'analysis'
+  | 'knowledge_tag'
+  | 'difficulty'
+
+/** 预览逐行结果：normalized 为映射后的标准字段（校验失败时为 null），errors/warnings 定位到本行。 */
+export interface QuestionImportRowIssue {
+  index?: number
+  row?: number
+  column: string
+  message: string
+}
+
+export interface QuestionImportRow {
+  index: number
+  normalized: Record<string, unknown> | null
+  warnings?: QuestionImportRowIssue[]
+  errors?: QuestionImportRowIssue[]
+}
+
+export interface QuestionImportStats {
+  total: number
+  valid: number
+  invalid: number
+}
+
 export interface QuestionImportPreview {
   token: string
   total: number
   valid_count: number
   error_count: number
   errors: QuestionImportError[]
-  preview: Array<Record<string, unknown>>
+  preview?: Array<Record<string, unknown>>
+  /** M2.5 新增：源列名 → 标准字段；mapping_meta 标记 exact/synonym/fuzzy。 */
+  mapping?: Record<string, ImportStandardField | string>
+  mapping_meta?: Record<string, string>
+  unmapped_columns?: string[]
+  rows?: QuestionImportRow[]
+  stats?: QuestionImportStats
+}
+
+/** 提交入参：只带 token 走服务端预览结果；带 rows 时用前端编辑后的行重新校验。 */
+export interface QuestionImportCommitPayload {
+  token: string
+  rows?: Array<Record<string, unknown>>
 }
 
 export interface QuestionImportCommit {

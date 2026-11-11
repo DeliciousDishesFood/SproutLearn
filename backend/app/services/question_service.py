@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
+import json
+import re
+from time import perf_counter
 from typing import Any
 
 from loguru import logger
@@ -18,6 +22,7 @@ from app.services.question_import import (
     clear_preview,
     commit_questions,
     load_preview,
+    normalize_edited_rows,
     normalize_item,
     parse_import,
     store_preview,
@@ -64,6 +69,18 @@ def preview_import(
         "error_count": len(parsed["errors"]),
         "errors": parsed["errors"],
         "preview": parsed["items"],
+        "mapping": parsed.get("mapping", {}),
+        "mapping_meta": parsed.get("mapping_meta", {}),
+        "unmapped_columns": parsed.get("unmapped_columns", []),
+        "rows": parsed.get("rows", []),
+        "stats": parsed.get(
+            "stats",
+            {
+                "total": parsed["total"],
+                "valid": len(parsed["items"]),
+                "invalid": len(parsed["errors"]),
+            },
+        ),
     }
 
 
@@ -75,14 +92,23 @@ def commit_import(
     token: str | None,
     content: bytes | None,
     filename: str | None,
+    rows: list[Any] | None = None,
 ) -> dict[str, Any]:
     require_owned_class(db, class_id, current.user_id)
     errors: list[dict[str, Any]] = []
+    items: list[dict[str, Any]] = []
     if token:
         payload = load_preview(token, class_id=class_id, teacher_id=current.user_id)
-        items = payload.get("items") or []
-        errors = payload.get("errors") or []
+        if rows is not None:
+            if not isinstance(rows, list):
+                raise AppException(ErrorCode.VALIDATION_ERROR, "rows 必须是数组")
+            items, errors = normalize_edited_rows(rows)
+        else:
+            items = payload.get("items") or []
+            errors = payload.get("errors") or []
     else:
+        if rows is not None:
+            raise AppException(ErrorCode.VALIDATION_ERROR, "rows 覆盖提交必须同时提供 token")
         if content is None:
             raise AppException(ErrorCode.VALIDATION_ERROR, "必须提供 token 或导入文件")
         parsed = parse_import(content, filename or "")
@@ -206,7 +232,8 @@ def _answer_text(answer: Any) -> str:
     return str(answer)
 
 
-def explain_question(db: Session, current: CurrentUser, *, question_id: int) -> dict[str, Any]:
+def get_explain_question(db: Session, current: CurrentUser, *, question_id: int) -> Question:
+    """讲评/流式共用的题目与权限校验。"""
     question = QuestionRepository(db).get_by_id(question_id)
     if question is None or question.deleted_at is not None:
         raise AppException(ErrorCode.NOT_FOUND, "题目不存在")
@@ -214,34 +241,123 @@ def explain_question(db: Session, current: CurrentUser, *, question_id: int) -> 
         require_owned_class(db, question.class_id, current.user_id)
     elif current.class_id != question.class_id:
         raise AppException(ErrorCode.CLASS_FORBIDDEN, "无权访问该班级资源")
+    return question
 
-    prompt = (
+
+def _explain_prompt(question: Question) -> str:
+    return (
         f"题干：{question.stem}\n"
         f"标准答案：{_answer_text(question.answer_json)}\n"
         f"已有解析：{question.analysis or '无'}\n"
         "请用中文给出一段简洁、可教学的讲评，说明考点、正确答案和易错点。"
     )
-    template = _template_explain(question)
-    try:
+
+
+def _ai_explain(question: Question, *, stream: bool = False) -> str:
+    """调用通用池；stream 模式使用更短的单跳超时，总上限由 SSE 侧控制。"""
+    if stream:
+        explain_settings = _settings.model_copy(
+            update={"llm_timeout_seconds": 10, "llm_max_retries": 0}
+        )
+    else:
         explain_settings = _settings.model_copy(
             update={"llm_timeout_seconds": _settings.llm_explain_timeout_seconds}
         )
-        router = build_router(explain_settings)
-        result = router.chat(
-            [
-                {"role": "system", "content": "你是青芽 SproutLearn 的讲评助手，只输出中文讲评。"},
-                {"role": "user", "content": prompt},
-            ],
-            temperature=0.3,
-            max_tokens=256,
-        )
-        logger.info("explain llm provider={} model={} content_len={}", result.provider, result.model, len(result.content or ""))
-        if result.content.strip():
-            return {"explanation": result.content.strip(), "engine": "llm", "degraded": False}
+    router = build_router(explain_settings)
+    result = router.chat(
+        [
+            {"role": "system", "content": "你是青芽 SproutLearn 的讲评助手，只输出中文讲评。"},
+            {"role": "user", "content": _explain_prompt(question)},
+        ],
+        temperature=0.3,
+        max_tokens=256,
+    )
+    logger.info(
+        "explain llm provider={} model={} content_len={}",
+        result.provider,
+        result.model,
+        len(result.content or ""),
+    )
+    return (result.content or "").strip()
+
+
+def explain_question(db: Session, current: CurrentUser, *, question_id: int) -> dict[str, Any]:
+    """同步讲评：保留原接口/原响应结构，复用同一模板与 AI 逻辑。"""
+    question = get_explain_question(db, current, question_id=question_id)
+    template = _template_explain(question)
+    try:
+        content = _ai_explain(question)
+        if content:
+            return {"explanation": content, "engine": "llm", "degraded": False}
         return {"explanation": template, "engine": "template", "degraded": True}
     except Exception as exc:  # noqa: BLE001 - 讲评绝不 500
         logger.warning("explain template fallback {}: {}", type(exc).__name__, str(exc)[:200])
         return {"explanation": template, "engine": "template", "degraded": True}
+
+
+def _sse(event: str, data: dict[str, Any]) -> str:
+    return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+
+def _split_ai(content: str, *, size: int = 320) -> list[str]:
+    """按段落/句号切 200–400 字；无标点时按固定长度切。"""
+    text = content.strip()
+    if not text:
+        return []
+    if len(text) <= 400:
+        return [text]
+    parts = re.split(r"(?<=[。！？!?；;\n])", text)
+    chunks: list[str] = []
+    current = ""
+    for part in parts:
+        if not part:
+            continue
+        if current and len(current) + len(part) > size:
+            chunks.append(current.strip())
+            current = part
+        else:
+            current += part
+    if current.strip():
+        chunks.append(current.strip())
+    if not chunks:
+        chunks = [text[i : i + size] for i in range(0, len(text), size)]
+    return [chunk for chunk in chunks if chunk]
+
+
+async def stream_explain(question: Question):
+    """SSE：先模板全文，再 AI 段落；20s 上限，失败直接 done，不抛流错误。"""
+    started = perf_counter()
+    template = _template_explain(question)
+    yield _sse("meta", {"engine": "template", "model": None})
+    yield _sse("delta", {"content": template})
+    try:
+        content = await asyncio.wait_for(
+            asyncio.to_thread(_ai_explain, question, stream=True),
+            timeout=20,
+        )
+    except Exception as exc:  # noqa: BLE001 - 流内失败只降级
+        logger.warning("explain stream fallback {}: {}", type(exc).__name__, str(exc)[:200])
+        content = ""
+    if content:
+        for chunk in _split_ai(content):
+            yield _sse("delta", {"content": chunk})
+        yield _sse(
+            "done",
+            {
+                "engine": "llm",
+                "degraded": False,
+                "elapsed_ms": round((perf_counter() - started) * 1000),
+            },
+        )
+    else:
+        yield _sse(
+            "done",
+            {
+                "engine": "template",
+                "degraded": True,
+                "elapsed_ms": round((perf_counter() - started) * 1000),
+            },
+        )
 
 
 def _template_explain(question: Question) -> str:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, File, Query, Request, UploadFile
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
@@ -47,10 +48,13 @@ async def commit_import(
     token: str | None = None
     content: bytes | None = None
     filename: str | None = None
+    rows = None
     content_type = request.headers.get("content-type", "")
     if content_type.startswith("application/json"):
         body = await request.json()
-        token = body.get("token") if isinstance(body, dict) else None
+        if isinstance(body, dict):
+            token = body.get("token")
+            rows = body.get("rows")
     else:
         form = await request.form()
         raw_token = form.get("token")
@@ -68,6 +72,7 @@ async def commit_import(
             token=token,
             content=content,
             filename=filename,
+            rows=rows,
         )
     )
 
@@ -132,3 +137,22 @@ def explain_question(
 ):
     """API-M2-14 按需讲评：LLM 可用走模型，否则模板，绝不 500。"""
     return success(question_service.explain_question(db, current, question_id=question_id))
+
+
+@router.post("/questions/{question_id}/explain/stream")
+async def explain_question_stream(
+    question_id: int,
+    current: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """M2.5 伪流式讲评：200ms 内先模板全文，再 AI 段落，失败不断流。"""
+    question = question_service.get_explain_question(db, current, question_id=question_id)
+    return StreamingResponse(
+        question_service.stream_explain(question),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )

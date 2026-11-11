@@ -34,13 +34,13 @@ async function handleLogout(): Promise<void> {
       <div class="student-topbar__right">
         <nav class="student-nav" aria-label="学生导航">
           <router-link to="/student/home" class="student-nav__link" active-class="student-nav__link--active">
-            首页
+            学习台
           </router-link>
           <router-link to="/student/papers" class="student-nav__link" active-class="student-nav__link--active">
-            试卷
+            练习
           </router-link>
           <router-link to="/student/profile" class="student-nav__link" active-class="student-nav__link--active">
-            个人中心
+            我的
           </router-link>
         </nav>
         <span class="student-user">

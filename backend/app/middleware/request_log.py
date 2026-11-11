@@ -1,32 +1,43 @@
-"""访问日志中间件：request_id | method | path | status | duration_ms | user_id | class_id。"""
+"""访问日志中间件（纯 ASGI，避免 BaseHTTPMiddleware 缓冲 SSE）。"""
 
 from __future__ import annotations
 
 from time import perf_counter
 
 from loguru import logger
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.config import get_settings
 
 
-class RequestLogMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
+class RequestLogMiddleware:
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
         started = perf_counter()
         status_code = 500
+
+        async def send_wrapper(message: Message) -> None:
+            nonlocal status_code
+            if message["type"] == "http.response.start":
+                status_code = message["status"]
+            await send(message)
+
         try:
-            response = await call_next(request)
-            status_code = response.status_code
-            return response
+            await self.app(scope, receive, send_wrapper)
         finally:
             duration_ms = (perf_counter() - started) * 1000
-            user_id = getattr(request.state, "user_id", None)
-            class_id = getattr(request.state, "class_id", None)
+            state = scope.get("state") or {}
+            user_id = state.get("user_id")
+            class_id = state.get("class_id")
             message = "{} {} | status={} | duration_ms={:.1f} | user_id={} | class_id={}"
             args = (
-                request.method,
-                request.url.path,
+                scope.get("method", ""),
+                scope.get("path", ""),
                 status_code,
                 duration_ms,
                 user_id,
@@ -34,4 +45,9 @@ class RequestLogMiddleware(BaseHTTPMiddleware):
             )
             logger.info(message, *args)
             if duration_ms > get_settings().slow_request_ms:
-                logger.warning("慢请求 {} {} 耗时 {:.1f}ms", request.method, request.url.path, duration_ms)
+                logger.warning(
+                    "慢请求 {} {} 耗时 {:.1f}ms",
+                    scope.get("method", ""),
+                    scope.get("path", ""),
+                    duration_ms,
+                )
