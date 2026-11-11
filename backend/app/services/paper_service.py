@@ -21,6 +21,7 @@ from app.repositories.attempt_repo import AttemptRepository
 from app.repositories.paper_repo import PaperRepository
 from app.repositories.question_repo import QuestionRepository
 from app.schemas.paper import PaperCreateRequest, PaperUpdateRequest
+from app.services.attempt_view import attempt_time_fields
 from app.services.class_service import require_owned_class
 from app.utils.response import page_data
 from app.utils.time import fmt_dt, now_naive
@@ -371,6 +372,7 @@ def _attempt_item(attempt: Attempt, paper: Paper) -> dict[str, Any]:
         "total_score": float(attempt.total_score or 0),
         "full_score": float(attempt.full_score or 0),
         "paper": _paper_item(paper),
+        **attempt_time_fields(attempt),
     }
 
 

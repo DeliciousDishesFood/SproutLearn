@@ -31,6 +31,16 @@ def list_my_attempts(
     )
 
 
+@router.get("/attempts/{attempt_id}")
+def get_attempt(
+    attempt_id: int,
+    current: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """API-M2D-01 恢复作答：学生本人/同班教师，学生视角无标准答案。"""
+    return success(attempt_service.get_attempt_resume(db, current, attempt_id=attempt_id))
+
+
 @router.put("/attempts/{attempt_id}/answers/{question_id}")
 def save_answer(
     attempt_id: int,

@@ -24,6 +24,7 @@ from app.repositories.attempt_repo import AttemptRepository
 from app.repositories.paper_repo import PaperRepository
 from app.repositories.review_repo import ReviewRepository
 from app.schemas.attempt import AnswerSaveRequest, ReviewCreateRequest
+from app.services.attempt_view import attempt_time_fields
 from app.services.class_service import require_owned_class
 from app.services.grading.grader import Grader
 from app.services.grading.result_service import sanitize_detail
@@ -413,6 +414,56 @@ def submit_attempt(db: Session, current: CurrentUser, *, attempt_id: int) -> dic
 def get_result(db: Session, current: CurrentUser, *, attempt_id: int) -> dict[str, Any]:
     attempt, paper = _require_attempt(db, current, attempt_id)
     return _result_payload(db, attempt, paper)
+
+
+def _student_question(question: Question, pq: PaperQuestion) -> dict[str, Any]:
+    """恢复/答题用学生视角：不返回标准答案、解析。"""
+    return {
+        "id": question.id,
+        "seq": pq.seq,
+        "score": float(pq.score or 0),
+        "type": question.type,
+        "stem": question.stem,
+        "options": question.options_json,
+        "knowledge_tag": question.knowledge_tag,
+        "difficulty": question.difficulty,
+    }
+
+
+def get_attempt_resume(db: Session, current: CurrentUser, *, attempt_id: int) -> dict[str, Any]:
+    """GET /attempts/{id}：学生本人/同班教师恢复已存答案与剩余时间。"""
+    attempt, paper = _require_attempt(db, current, attempt_id)
+    now = now_naive()
+    rows = _paper_rows(db, paper.id)
+    records = AnswerRecordRepository(db).list_by_attempt(attempt.id)
+    answers = {
+        str(record.question_id): _raw_value(record.raw_answer_json)
+        for record in records
+        if record.raw_answer_json is not None
+    }
+    return {
+        "attempt": {
+            "id": attempt.id,
+            "paper_id": attempt.paper_id,
+            "class_id": attempt.class_id,
+            "student_id": attempt.student_id,
+            "status": attempt.status,
+            "total_score": float(attempt.total_score or 0),
+            "full_score": float(attempt.full_score or 0),
+            "started_at": fmt_dt(attempt.started_at),
+            "deadline_at": fmt_dt(attempt.deadline_at),
+            "submitted_at": fmt_dt(attempt.submitted_at),
+        },
+        "paper": {
+            "id": paper.id,
+            "title": paper.title,
+            "duration_minutes": paper.duration_minutes,
+            "blank_mode": paper.blank_mode,
+        },
+        "questions": [_student_question(question, pq) for pq, question in rows],
+        "answers": answers,
+        **attempt_time_fields(attempt, now=now),
+    }
 
 
 def review_attempt(
