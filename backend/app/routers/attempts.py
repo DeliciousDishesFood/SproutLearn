@@ -2,15 +2,33 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.deps import CurrentUser, get_current_user, get_db, require_student, require_teacher
 from app.schemas.attempt import AnswerSaveRequest, ReviewCreateRequest
-from app.services import attempt_service
+from app.services import attempt_service, paper_service
 from app.utils.response import success
 
 router = APIRouter(tags=["attempts"])
+
+
+@router.get("/attempts/mine")
+def list_my_attempts(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    current: CurrentUser = Depends(require_student),
+    db: Session = Depends(get_db),
+):
+    """API-M2C-05 我的作答记录（仅学生，班级作用域）。"""
+    return success(
+        paper_service.list_my_attempts(
+            db,
+            current,
+            page=page,
+            page_size=page_size,
+        )
+    )
 
 
 @router.put("/attempts/{attempt_id}/answers/{question_id}")

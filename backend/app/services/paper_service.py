@@ -15,11 +15,14 @@ from app.models.attempt import Attempt
 from app.models.paper import Paper
 from app.models.paper_question import PaperQuestion
 from app.models.question import Question
+from app.models.student import Student
+from app.repositories.answer_record_repo import AnswerRecordRepository
 from app.repositories.attempt_repo import AttemptRepository
 from app.repositories.paper_repo import PaperRepository
 from app.repositories.question_repo import QuestionRepository
-from app.schemas.paper import PaperCreateRequest
+from app.schemas.paper import PaperCreateRequest, PaperUpdateRequest
 from app.services.class_service import require_owned_class
+from app.utils.response import page_data
 from app.utils.time import fmt_dt, now_naive
 
 _settings = get_settings()
@@ -32,6 +35,7 @@ def _paper_item(paper: Paper) -> dict[str, Any]:
         "class_id": paper.class_id,
         "title": paper.title,
         "mode": paper.mode,
+        "blank_mode": paper.blank_mode,
         "duration_minutes": paper.duration_minutes,
         "shuffle": bool(paper.shuffle),
         "question_count": paper.question_count,
@@ -116,6 +120,7 @@ def create_paper(
         class_id=class_id,
         title=payload.title,
         mode=payload.mode,
+        blank_mode=payload.blank_mode,
         duration_minutes=payload.duration_minutes,
         shuffle=1 if payload.shuffle else 0,
         question_count=len(selected),
@@ -152,14 +157,189 @@ def paper_detail(db: Session, current: CurrentUser, *, paper_id: int) -> dict[st
     }
 
 
+def update_paper(
+    db: Session,
+    current: CurrentUser,
+    *,
+    paper_id: int,
+    payload: PaperUpdateRequest,
+) -> dict[str, Any]:
+    paper = _require_paper_for_teacher(db, paper_id, current.user_id)
+    if paper.status == "published":
+        raise AppException(ErrorCode.PAPER_PUBLISHED_FORBIDDEN, "已发布试卷不能修改")
+    fields = payload.model_fields_set
+    if "title" in fields and payload.title is not None:
+        paper.title = payload.title
+    if "duration_minutes" in fields and payload.duration_minutes is not None:
+        paper.duration_minutes = payload.duration_minutes
+    if "blank_mode" in fields and payload.blank_mode is not None:
+        paper.blank_mode = payload.blank_mode
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    db.refresh(paper)
+    return paper_detail(db, current, paper_id=paper.id)
+
+
+def withdraw_paper(db: Session, current: CurrentUser, *, paper_id: int) -> dict[str, Any]:
+    repo = PaperRepository(db)
+    paper = repo.lock_by_id(paper_id)
+    if paper is None:
+        raise AppException(ErrorCode.NOT_FOUND, "试卷不存在")
+    # 学生、跨班教师、非创建者教师统一 40302
+    if current.role != "teacher" or paper.created_by != current.user_id:
+        raise AppException(ErrorCode.CLASS_FORBIDDEN, "无权访问该班级资源")
+    if paper.status != "published":
+        raise AppException(ErrorCode.PAPER_STATE_CONFLICT, "试卷当前状态不允许撤回")
+    paper.status = "closed"
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    db.refresh(paper)
+    return paper_detail(db, current, paper_id=paper.id)
+
+
+def list_class_papers(
+    db: Session,
+    current: CurrentUser,
+    *,
+    class_id: int,
+    page: int,
+    page_size: int,
+) -> dict[str, Any]:
+    if current.role == "teacher":
+        require_owned_class(db, class_id, current.user_id)
+        statuses: tuple[str, ...] | None = None
+    else:
+        if current.class_id != class_id:
+            raise AppException(ErrorCode.CLASS_FORBIDDEN, "无权访问该班级资源")
+        statuses = ("published",)
+    repo = PaperRepository(db)
+    total = repo.count_scoped(class_id, statuses=statuses)
+    papers = repo.list_scoped(
+        class_id,
+        statuses=statuses,
+        offset=(page - 1) * page_size,
+        limit=page_size,
+    )
+    attempt_status: dict[int, str] = {}
+    if statuses is not None:
+        attempt_status = AttemptRepository(db).status_by_paper_ids(
+            class_id, current.user_id, [paper.id for paper in papers]
+        )
+    items = [
+        {
+            **_paper_item(paper),
+            "my_attempt_status": attempt_status.get(paper.id),
+        }
+        for paper in papers
+    ]
+    return page_data(items, total, page, page_size)
+
+
+def list_paper_attempts(
+    db: Session,
+    current: CurrentUser,
+    *,
+    paper_id: int,
+    page: int,
+    page_size: int,
+) -> dict[str, Any]:
+    paper = _require_paper_for_teacher(db, paper_id, current.user_id)
+    repo = AttemptRepository(db)
+    total = repo.count_by_paper(paper.class_id, paper.id)
+    attempts = repo.list_by_paper(
+        paper.class_id,
+        paper.id,
+        offset=(page - 1) * page_size,
+        limit=page_size,
+    )
+    needs_review = AnswerRecordRepository(db).needs_review_counts(
+        [attempt.id for attempt in attempts]
+    )
+    student_ids = [attempt.student_id for attempt in attempts]
+    students = (
+        db.query(Student).filter(Student.id.in_(student_ids)).all()
+        if student_ids
+        else []
+    )
+    student_map = {student.id: student for student in students}
+    items = []
+    for attempt in attempts:
+        student = student_map.get(attempt.student_id)
+        items.append(
+            {
+                "id": attempt.id,
+                "attempt_id": attempt.id,
+                "student_id": attempt.student_id,
+                "student_no": student.student_no if student else None,
+                "student_name": student.name if student else None,
+                "status": attempt.status,
+                "total_score": float(attempt.total_score or 0),
+                "full_score": float(attempt.full_score or 0),
+                "needs_review_count": needs_review.get(attempt.id, 0),
+                "started_at": fmt_dt(attempt.started_at),
+                "submitted_at": fmt_dt(attempt.submitted_at),
+            }
+        )
+    return page_data(items, total, page, page_size)
+
+
+def list_my_attempts(
+    db: Session,
+    current: CurrentUser,
+    *,
+    page: int,
+    page_size: int,
+) -> dict[str, Any]:
+    repo = AttemptRepository(db)
+    class_id = current.class_id or 0
+    total = repo.count_mine(class_id, current.user_id)
+    attempts = repo.list_mine(
+        class_id,
+        current.user_id,
+        offset=(page - 1) * page_size,
+        limit=page_size,
+    )
+    paper_ids = {attempt.paper_id for attempt in attempts}
+    papers = (
+        {paper.id: paper for paper in db.query(Paper).filter(Paper.id.in_(paper_ids)).all()}
+        if paper_ids
+        else {}
+    )
+    items = []
+    for attempt in attempts:
+        paper = papers.get(attempt.paper_id)
+        items.append(
+            {
+                "id": attempt.id,
+                "attempt_id": attempt.id,
+                "paper_id": attempt.paper_id,
+                "paper_title": paper.title if paper else None,
+                "total_score": float(attempt.total_score or 0),
+                "full_score": float(attempt.full_score or 0),
+                "status": attempt.status,
+                "started_at": fmt_dt(attempt.started_at),
+                "submitted_at": fmt_dt(attempt.submitted_at),
+                "deadline_at": fmt_dt(attempt.deadline_at),
+            }
+        )
+    return page_data(items, total, page, page_size)
+
+
 def publish_paper(db: Session, current: CurrentUser, *, paper_id: int) -> dict[str, Any]:
     repo = PaperRepository(db)
     paper = repo.lock_by_id(paper_id)
     if paper is None:
         raise AppException(ErrorCode.NOT_FOUND, "试卷不存在")
     require_owned_class(db, paper.class_id, current.user_id)
-    if paper.status == "closed":
-        raise AppException(ErrorCode.PAPER_PUBLISHED_FORBIDDEN, "试卷已关闭，不能再次发布")
+    # draft 和撤回后的 closed 都允许重新发布
+    if paper.status == "published":
+        return paper_detail(db, current, paper_id=paper.id)
     rows = repo.questions(paper.id)
     if not rows:
         raise AppException(ErrorCode.QUESTION_BANK_EMPTY, "试卷没有题目，无法发布")

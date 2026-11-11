@@ -39,3 +39,57 @@ class AttemptRepository(BaseRepository[Attempt]):
             .order_by(Attempt.id.asc())
             .all()
         )
+
+    def list_by_paper(
+        self, class_id: int, paper_id: int, *, offset: int, limit: int
+    ) -> list[Attempt]:
+        return (
+            self.db.query(Attempt)
+            .filter(Attempt.class_id == class_id, Attempt.paper_id == paper_id)
+            .order_by(Attempt.id.asc())
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
+
+    def count_by_paper(self, class_id: int, paper_id: int) -> int:
+        return (
+            self.db.query(Attempt)
+            .filter(Attempt.class_id == class_id, Attempt.paper_id == paper_id)
+            .count()
+        )
+
+    def list_mine(
+        self, class_id: int, student_id: int, *, offset: int, limit: int
+    ) -> list[Attempt]:
+        return (
+            self.db.query(Attempt)
+            .filter(Attempt.class_id == class_id, Attempt.student_id == student_id)
+            .order_by(Attempt.id.desc())
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
+
+    def count_mine(self, class_id: int, student_id: int) -> int:
+        return (
+            self.db.query(Attempt)
+            .filter(Attempt.class_id == class_id, Attempt.student_id == student_id)
+            .count()
+        )
+
+    def status_by_paper_ids(
+        self, class_id: int, student_id: int, paper_ids: list[int]
+    ) -> dict[int, str]:
+        if not paper_ids:
+            return {}
+        rows = (
+            self.db.query(Attempt.paper_id, Attempt.status)
+            .filter(
+                Attempt.class_id == class_id,
+                Attempt.student_id == student_id,
+                Attempt.paper_id.in_(paper_ids),
+            )
+            .all()
+        )
+        return {int(paper_id): status for paper_id, status in rows}

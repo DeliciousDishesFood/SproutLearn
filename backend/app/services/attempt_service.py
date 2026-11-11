@@ -32,7 +32,7 @@ from app.services.llm.router import build_router
 from app.utils.time import fmt_dt, now_naive
 
 _settings = get_settings()
-_BLANK_MODE = "ai"
+DEFAULT_BLANK_MODE = "smart"
 
 
 def _require_attempt(
@@ -79,7 +79,13 @@ def _blank_student_value(raw: Any, count: int) -> list[Any]:
     return [raw]
 
 
-def _aggregate_blank(grader: Grader, question: Question, pq: PaperQuestion, raw: Any) -> dict[str, Any]:
+def _aggregate_blank(
+    grader: Grader,
+    question: Question,
+    pq: PaperQuestion,
+    raw: Any,
+    blank_mode: str,
+) -> dict[str, Any]:
     """多空填空：按空计费，总分平均分摊，聚合引擎/置信度/复核标记。"""
     standards = question.answer_json if isinstance(question.answer_json, list) else [question.answer_json]
     students = _blank_student_value(raw, len(standards))
@@ -103,7 +109,7 @@ def _aggregate_blank(grader: Grader, question: Question, pq: PaperQuestion, raw:
             full_score=per_score,
             question=f"{question.stem}（第 {index} 空）",
             knowledge_tags=[question.knowledge_tag],
-            blank_mode=_BLANK_MODE,
+            blank_mode=blank_mode,
         )
         total += float(result["score"])
         correct = correct and bool(result["correct"])
@@ -130,9 +136,15 @@ def _aggregate_blank(grader: Grader, question: Question, pq: PaperQuestion, raw:
     }
 
 
-def _grade_one(grader: Grader, question: Question, pq: PaperQuestion, raw: Any) -> dict[str, Any]:
+def _grade_one(
+    grader: Grader,
+    question: Question,
+    pq: PaperQuestion,
+    raw: Any,
+    blank_mode: str,
+) -> dict[str, Any]:
     if (question.type or "").lower() == "blank" and isinstance(question.answer_json, list):
-        return _aggregate_blank(grader, question, pq, raw)
+        return _aggregate_blank(grader, question, pq, raw, blank_mode)
     student = raw if raw is not None else ""
     return grader.grade(
         question_type=question.type,
@@ -141,13 +153,19 @@ def _grade_one(grader: Grader, question: Question, pq: PaperQuestion, raw: Any) 
         full_score=float(pq.score or 0),
         question=question.stem,
         knowledge_tags=[question.knowledge_tag],
-        blank_mode=_BLANK_MODE,
+        blank_mode=blank_mode,
     )
 
 
-def _safe_grade(grader: Grader, question: Question, pq: PaperQuestion, raw: Any) -> dict[str, Any]:
+def _safe_grade(
+    grader: Grader,
+    question: Question,
+    pq: PaperQuestion,
+    raw: Any,
+    blank_mode: str,
+) -> dict[str, Any]:
     try:
-        return _grade_one(grader, question, pq, raw)
+        return _grade_one(grader, question, pq, raw, blank_mode)
     except Exception as exc:  # noqa: BLE001 - 单题异常不阻塞整卷
         return {
             "score": 0.0,
@@ -167,15 +185,16 @@ def _safe_grade(grader: Grader, question: Question, pq: PaperQuestion, raw: Any)
 def _grade_all(
     paper_rows: list[tuple[PaperQuestion, Question]],
     raws: dict[int, Any],
+    blank_mode: str,
 ) -> tuple[list[dict[str, Any]], float]:
     settings = get_settings()
-    grader = Grader(jev_client=build_jev_client(), llm_router=build_router(), blank_mode=_BLANK_MODE)
+    grader = Grader(jev_client=build_jev_client(), llm_router=build_router(), blank_mode=blank_mode)
     started = perf_counter()
     results: list[dict[str, Any]] = []
     workers = max(1, settings.grading_concurrency)
     with ThreadPoolExecutor(max_workers=workers) as executor:
         futures = [
-            executor.submit(_safe_grade, grader, question, pq, raws.get(question.id))
+            executor.submit(_safe_grade, grader, question, pq, raws.get(question.id), blank_mode)
             for pq, question in paper_rows
         ]
         for future in futures:
@@ -302,6 +321,7 @@ def _result_payload(
             "class_id": paper.class_id,
             "title": paper.title,
             "mode": paper.mode,
+            "blank_mode": paper.blank_mode,
             "duration_minutes": paper.duration_minutes,
             "status": paper.status,
         },
@@ -336,7 +356,7 @@ def submit_attempt(db: Session, current: CurrentUser, *, attempt_id: int) -> dic
             truncated.add(question.id)
         raws[question.id] = raw
 
-    results, grading_ms = _grade_all(rows, raws)
+    results, grading_ms = _grade_all(rows, raws, paper.blank_mode or DEFAULT_BLANK_MODE)
     answer_repo = AnswerRecordRepository(db)
     total_score = 0.0
     full_score = 0.0

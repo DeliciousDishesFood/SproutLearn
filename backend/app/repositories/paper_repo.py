@@ -34,6 +34,30 @@ class PaperRepository(BaseRepository[Paper]):
             .one_or_none()
         )
 
+    def list_scoped(
+        self,
+        class_id: int,
+        *,
+        statuses: tuple[str, ...] | None,
+        offset: int,
+        limit: int,
+    ) -> list[Paper]:
+        query = self.db.query(Paper).filter(Paper.class_id == class_id)
+        if statuses:
+            query = query.filter(Paper.status.in_(statuses))
+        return (
+            query.order_by(Paper.created_at.desc(), Paper.id.desc())
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
+
+    def count_scoped(self, class_id: int, *, statuses: tuple[str, ...] | None) -> int:
+        query = self.db.query(Paper).filter(Paper.class_id == class_id)
+        if statuses:
+            query = query.filter(Paper.status.in_(statuses))
+        return query.count()
+
     def questions(self, paper_id: int) -> list[tuple[PaperQuestion, Question]]:
         return (
             self.db.query(PaperQuestion, Question)

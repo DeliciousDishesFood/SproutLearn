@@ -158,7 +158,7 @@ def update_question(
         raise AppException(ErrorCode.NOT_FOUND, "题目不存在")
     require_owned_class(db, question.class_id, current.user_id)
     fields = payload.model_fields_set
-    if repo.published_reference(question_id) and not fields.issubset({"analysis"}):
+    if repo.published_reference(question_id, include_closed=False) and not fields.issubset({"analysis"}):
         raise AppException(ErrorCode.PAPER_PUBLISHED_FORBIDDEN, "已发布试卷引用的题目只允许修改解析")
 
     merged = _merged_question(question, payload)

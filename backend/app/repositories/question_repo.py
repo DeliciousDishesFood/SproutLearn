@@ -114,13 +114,14 @@ class QuestionRepository(BaseRepository[Question]):
             query = query.filter(Question.difficulty == difficulty)
         return query.order_by(Question.id.asc()).all()
 
-    def published_reference(self, question_id: int) -> bool:
+    def published_reference(self, question_id: int, *, include_closed: bool = True) -> bool:
+        statuses = ("published", "closed") if include_closed else ("published",)
         return (
             self.db.query(PaperQuestion.id)
             .join(Paper, Paper.id == PaperQuestion.paper_id)
             .filter(
                 PaperQuestion.question_id == question_id,
-                Paper.status.in_(("published", "closed")),
+                Paper.status.in_(statuses),
             )
             .first()
             is not None

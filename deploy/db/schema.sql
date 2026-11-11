@@ -247,6 +247,7 @@ CREATE TABLE IF NOT EXISTS `paper` (
   `class_id` BIGINT UNSIGNED NOT NULL,
   `title` VARCHAR(200) NOT NULL,
   `mode` VARCHAR(16) NOT NULL,
+  `blank_mode` VARCHAR(8) NOT NULL DEFAULT 'smart',
   `duration_minutes` INT NOT NULL DEFAULT 0,
   `shuffle` TINYINT NOT NULL DEFAULT 0,
   `question_count` INT NOT NULL DEFAULT 0,

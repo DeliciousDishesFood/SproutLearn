@@ -17,6 +17,7 @@ class Paper(Base):
     )
     title = Column(String(200), nullable=False)
     mode = Column(String(16), nullable=False)
+    blank_mode = Column(String(8), nullable=False, default="smart", server_default="smart")
     duration_minutes = Column(Integer, nullable=False, default=0, server_default="0")
     shuffle = Column(tinyint(), nullable=False, default=0, server_default="0")
     question_count = Column(Integer, nullable=False, default=0, server_default="0")

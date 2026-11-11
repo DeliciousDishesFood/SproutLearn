@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.answer_record import AnswerRecord
@@ -13,6 +14,20 @@ class AnswerRecordRepository(BaseRepository[AnswerRecord]):
 
     def __init__(self, db: Session) -> None:
         super().__init__(db)
+
+    def needs_review_counts(self, attempt_ids: list[int]) -> dict[int, int]:
+        if not attempt_ids:
+            return {}
+        rows = (
+            self.db.query(AnswerRecord.attempt_id, func.count(AnswerRecord.id))
+            .filter(
+                AnswerRecord.attempt_id.in_(attempt_ids),
+                AnswerRecord.needs_review == 1,
+            )
+            .group_by(AnswerRecord.attempt_id)
+            .all()
+        )
+        return {int(attempt_id): int(count) for attempt_id, count in rows}
 
     def get_by_attempt_question(self, attempt_id: int, question_id: int) -> AnswerRecord | None:
         return (

@@ -169,26 +169,18 @@ def _fallback_llm(
     )
 
 
-def grade_blank(
+def _jev_outcome(
     *,
     standard: Any,
     student: Any,
-    full_score: float = 1.0,
-    mode: str = "smart",
-    question: str = "",
-    jev_client: JevClient | None = None,
-    llm_router: Any = None,
-    fallback_to_llm: bool | None = None,
+    full_score: float,
+    question: str,
+    jev_client: JevClient,
+    fallback_to_llm: bool | None,
+    llm_router: Any,
+    label: str,
 ) -> BlankOutcome:
-    """三档判分；ai 失败按配置走通用池/确定性，并明确 degraded。"""
-    normalized_mode = (mode or "smart").strip().lower()
-    if normalized_mode not in BLANK_MODES:
-        raise ValueError(f"unsupported blank mode: {mode!r}")
-    if normalized_mode in ("strict", "smart"):
-        return _deterministic(student, standard, full_score, mode=normalized_mode)
-
-    settings = get_settings()
-    allow_llm = settings.jev_fallback_to_llm if fallback_to_llm is None else fallback_to_llm
+    """调用 Jev noul；不可用时按 M2A 规则降级。"""
     if jev_client is None or not jev_client.available():
         return _fallback_with_llm_or_deterministic(
             standard=standard,
@@ -196,10 +188,13 @@ def grade_blank(
             full_score=full_score,
             question=question,
             llm_router=llm_router,
-            allow_llm=allow_llm,
+            allow_llm=(
+                get_settings().jev_fallback_to_llm
+                if fallback_to_llm is None
+                else fallback_to_llm
+            ),
             reason="disabled_or_missing_appkey",
         )
-
     try:
         result = jev_client.evaluate(
             state=build_jev_state(question=question, standard=standard, student=student),
@@ -212,7 +207,11 @@ def grade_blank(
             full_score=full_score,
             question=question,
             llm_router=llm_router,
-            allow_llm=allow_llm,
+            allow_llm=(
+                get_settings().jev_fallback_to_llm
+                if fallback_to_llm is None
+                else fallback_to_llm
+            ),
             reason=exc.reason,
         )
 
@@ -224,7 +223,11 @@ def grade_blank(
             full_score=full_score,
             question=question,
             llm_router=llm_router,
-            allow_llm=allow_llm,
+            allow_llm=(
+                get_settings().jev_fallback_to_llm
+                if fallback_to_llm is None
+                else fallback_to_llm
+            ),
             reason="missing_blank_answer",
         )
     correct = answer.as_bool(JEV_TRUE_THRESHOLD)
@@ -235,7 +238,7 @@ def grade_blank(
         score=round(float(full_score if correct else 0.0), 2),
         full_score=round(float(full_score), 2),
         correct=correct,
-        basis=f"填空 AI 语义等价（Jev noul，阈值 {JEV_TRUE_THRESHOLD}）",
+        basis=f"{label}（Jev noul，阈值 {JEV_TRUE_THRESHOLD}）",
         deductions=[] if correct else ["Jev 判定不等价"],
         confidence=confidence,
         needs_review=review,
@@ -250,6 +253,59 @@ def grade_blank(
                 "transport": result.transport,
             }
         },
+    )
+
+
+def grade_blank(
+    *,
+    standard: Any,
+    student: Any,
+    full_score: float = 1.0,
+    mode: str = "smart",
+    question: str = "",
+    jev_client: JevClient | None = None,
+    llm_router: Any = None,
+    fallback_to_llm: bool | None = None,
+) -> BlankOutcome:
+    """三档判分：strict 严格、smart 先严格后 Jev、ai 直接 Jev。"""
+    normalized_mode = (mode or "smart").strip().lower()
+    if normalized_mode not in BLANK_MODES:
+        raise ValueError(f"unsupported blank mode: {mode!r}")
+    if normalized_mode == "strict":
+        return _deterministic(student, standard, full_score, mode="strict")
+    if normalized_mode == "smart":
+        exact = _deterministic(student, standard, full_score, mode="smart")
+        if exact.correct:
+            return exact
+        # smart 的语义等价兜底走 Jev；无 Jev 时保留 M2A 的确定性 smart 行为并标记降级
+        if jev_client is None or not jev_client.available():
+            return _fallback_deterministic(
+                standard=standard,
+                student=student,
+                full_score=full_score,
+                reason="smart_without_jev",
+            )
+        return _jev_outcome(
+            standard=standard,
+            student=student,
+            full_score=full_score,
+            question=question,
+            jev_client=jev_client,
+            fallback_to_llm=False,
+            llm_router=None,
+            label="填空智能语义等价",
+        )
+
+    # ai 保持原 M2A 行为（直接 Jev，失败可走通用池/确定性）
+    return _jev_outcome(
+        standard=standard,
+        student=student,
+        full_score=full_score,
+        question=question,
+        jev_client=jev_client,
+        fallback_to_llm=fallback_to_llm,
+        llm_router=llm_router,
+        label="填空 AI 语义等价",
     )
 
 
