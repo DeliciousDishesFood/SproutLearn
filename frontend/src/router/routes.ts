@@ -84,6 +84,30 @@ export const routes: RouteRecordRaw[] = [
         component: () => import('@/views/teacher/KnowledgeDetailView.vue'),
         meta: { title: '文档详情', requiresAuth: true, roles: ['teacher'] },
       },
+      {
+        path: 'questions',
+        name: 'teacher-questions',
+        component: () => import('@/views/teacher/TeacherQuestionsView.vue'),
+        meta: { title: '题库', requiresAuth: true, roles: ['teacher'] },
+      },
+      {
+        path: 'papers',
+        name: 'teacher-papers',
+        component: () => import('@/views/teacher/TeacherPapersView.vue'),
+        meta: { title: '试卷', requiresAuth: true, roles: ['teacher'] },
+      },
+      {
+        path: 'papers/new',
+        name: 'teacher-paper-create',
+        component: () => import('@/views/teacher/TeacherPaperCreateView.vue'),
+        meta: { title: '新建试卷', requiresAuth: true, roles: ['teacher'] },
+      },
+      {
+        path: 'papers/:id',
+        name: 'teacher-paper-detail',
+        component: () => import('@/views/teacher/TeacherPaperDetailView.vue'),
+        meta: { title: '试卷详情', requiresAuth: true, roles: ['teacher'] },
+      },
     ],
   },
   {
@@ -112,6 +136,39 @@ export const routes: RouteRecordRaw[] = [
         component: () => import('@/views/student/StudentProfileView.vue'),
         meta: {
           title: '个人中心',
+          requiresAuth: true,
+          roles: ['student'],
+          studentShell: true,
+        },
+      },
+      {
+        path: 'papers',
+        name: 'student-papers',
+        component: () => import('@/views/student/StudentPapersView.vue'),
+        meta: {
+          title: '试卷',
+          requiresAuth: true,
+          roles: ['student'],
+          studentShell: true,
+        },
+      },
+      {
+        path: 'attempts/:id',
+        name: 'student-attempt',
+        component: () => import('@/views/student/StudentAttemptView.vue'),
+        meta: {
+          title: '答题',
+          requiresAuth: true,
+          roles: ['student'],
+          studentShell: true,
+        },
+      },
+      {
+        path: 'attempts/:id/result',
+        name: 'student-attempt-result',
+        component: () => import('@/views/student/StudentResultView.vue'),
+        meta: {
+          title: '成绩',
           requiresAuth: true,
           roles: ['student'],
           studentShell: true,

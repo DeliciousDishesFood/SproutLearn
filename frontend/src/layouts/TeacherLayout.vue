@@ -3,6 +3,8 @@
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
+  ClipboardList,
+  Files,
   LayoutDashboard,
   LibraryBig,
   LogOut,
@@ -21,6 +23,8 @@ const navItems = [
   { label: '教学总览', to: '/teacher/dashboard', icon: LayoutDashboard },
   { label: '我的班级', to: '/teacher/classes', icon: UsersRound },
   { label: '知识库', to: '/teacher/knowledge', icon: LibraryBig },
+  { label: '题库', to: '/teacher/questions', icon: ClipboardList },
+  { label: '试卷', to: '/teacher/papers', icon: Files },
 ]
 
 const pageTitle = computed(() => (route.meta.title as string | undefined) || '教学工作台')

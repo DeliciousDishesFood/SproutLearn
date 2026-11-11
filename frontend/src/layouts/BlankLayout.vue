@@ -36,6 +36,9 @@ async function handleLogout(): Promise<void> {
           <router-link to="/student/home" class="student-nav__link" active-class="student-nav__link--active">
             首页
           </router-link>
+          <router-link to="/student/papers" class="student-nav__link" active-class="student-nav__link--active">
+            试卷
+          </router-link>
           <router-link to="/student/profile" class="student-nav__link" active-class="student-nav__link--active">
             个人中心
           </router-link>

@@ -1,4 +1,13 @@
 // 前端常量：环境变量统一在此解析，禁止在组件里写业务魔法数字或字符串。
+import type {
+  BlankMode,
+  AttemptStatus,
+  PaperMode,
+  PaperStatus,
+  QuestionDifficulty,
+  QuestionStatus,
+  QuestionType,
+} from '@/api/types'
 import type { DocStatusValue, Role } from '@/types'
 
 const env = import.meta.env
@@ -74,10 +83,16 @@ export const ERROR_CODE = {
   BIND_CODE_INVALID: 40905,
   DOC_DUPLICATE: 40906,
   CLASS_LIMIT: 40907,
+  QUESTION_BANK_EMPTY: 40908,
+  PAPER_PUBLISHED_FORBIDDEN: 40909,
+  ATTEMPT_SUBMITTED: 40910,
+  PAPER_STATE_CONFLICT: 40911,
   FILE_TOO_LARGE: 41301,
+  IMPORT_TOO_LARGE: 41302,
   UNSUPPORTED_FORMAT: 41501,
   NO_TEXT_LAYER: 42201,
   PARSE_FAILED: 42202,
+  IMPORT_FORMAT_ERROR: 42203,
   RATE_LIMITED: 42901,
   INTERNAL_ERROR: 50001,
   DEPENDENCY_UNAVAILABLE: 50301,
@@ -99,10 +114,16 @@ export const ERROR_MESSAGES: Record<number, string> = {
   [ERROR_CODE.BIND_CODE_INVALID]: '绑定码无效或已过期，请重新生成',
   [ERROR_CODE.DOC_DUPLICATE]: '文档已存在，请勿重复上传',
   [ERROR_CODE.CLASS_LIMIT]: '班级数量已达上限，请归档旧班后再创建',
+  [ERROR_CODE.QUESTION_BANK_EMPTY]: '题库没有可用题目，请先导入题目或调整组卷条件',
+  [ERROR_CODE.PAPER_PUBLISHED_FORBIDDEN]: '试卷已发布，当前内容不可修改',
+  [ERROR_CODE.ATTEMPT_SUBMITTED]: '本次作答已提交，不能再修改答案',
+  [ERROR_CODE.PAPER_STATE_CONFLICT]: '试卷当前状态不允许该操作',
   [ERROR_CODE.FILE_TOO_LARGE]: `文件超过 ${UPLOAD_MAX_MB}MB 上限，请压缩后重试`,
+  [ERROR_CODE.IMPORT_TOO_LARGE]: '单次导入题目过多，请分批导入',
   [ERROR_CODE.UNSUPPORTED_FORMAT]: '文件类型不支持，请上传 PDF、Word、PPT、Markdown 或 TXT',
   [ERROR_CODE.NO_TEXT_LAYER]: '未检测到文字层，请上传可复制文字的 PDF',
   [ERROR_CODE.PARSE_FAILED]: '文档解析失败，请检查文件后重试',
+  [ERROR_CODE.IMPORT_FORMAT_ERROR]: '题库文件格式错误，请按模板修正后重试',
   [ERROR_CODE.RATE_LIMITED]: '操作过于频繁，请稍后再试',
   [ERROR_CODE.INTERNAL_ERROR]: '服务器开小差了，请稍后重试',
   [ERROR_CODE.DEPENDENCY_UNAVAILABLE]: '服务暂时不可用，请稍后重试',
@@ -135,3 +156,73 @@ export const ROLE_LABEL: Record<Role, string> = {
   teacher: '教师',
   student: '学生',
 }
+
+export type TagTone = 'neutral' | 'primary' | 'accent' | 'success' | 'warning' | 'danger'
+
+export const QUESTION_TYPE_META: Record<
+  QuestionType,
+  { label: string; short: string; tone: TagTone }
+> = {
+  single: { label: '单选题', short: '单选', tone: 'primary' },
+  multiple: { label: '多选题', short: '多选', tone: 'accent' },
+  judge: { label: '判断题', short: '判断', tone: 'success' },
+  blank: { label: '填空题', short: '填空', tone: 'warning' },
+}
+
+export const DIFFICULTY_META: Record<
+  QuestionDifficulty,
+  { label: string; tone: TagTone }
+> = {
+  easy: { label: '简单', tone: 'success' },
+  medium: { label: '中等', tone: 'neutral' },
+  hard: { label: '困难', tone: 'danger' },
+}
+
+export const QUESTION_STATUS_META: Record<
+  QuestionStatus,
+  { label: string; tone: TagTone }
+> = {
+  draft: { label: '草稿', tone: 'neutral' },
+  published: { label: '已入卷', tone: 'primary' },
+}
+
+export const PAPER_STATUS_META: Record<PaperStatus, { label: string; tone: TagTone }> = {
+  draft: { label: '草稿', tone: 'neutral' },
+  published: { label: '已发布', tone: 'success' },
+  closed: { label: '已撤回', tone: 'warning' },
+}
+
+export const PAPER_MODE_LABEL: Record<PaperMode, string> = {
+  fixed: '固定选题',
+  random: '随机组卷',
+}
+
+export const BLANK_MODE_META: Record<
+  BlankMode,
+  { label: string; short: string; description: string }
+> = {
+  smart: {
+    label: '智能判分',
+    short: '智能',
+    description: '填空题语义相近也得分；低置信答案交由教师复核。',
+  },
+  strict: {
+    label: '严格判分',
+    short: '严格',
+    description: '填空题仅与标准答案完全一致时得分，不调用语义模型。',
+  },
+}
+
+export const ATTEMPT_STATUS_META: Record<
+  AttemptStatus,
+  { label: string; tone: TagTone }
+> = {
+  doing: { label: '作答中', tone: 'warning' },
+  submitted: { label: '待复核', tone: 'accent' },
+  graded: { label: '已复核', tone: 'success' },
+}
+
+/** 题库导入只接受 JSON / XLSX。 */
+export const QUESTION_IMPORT_ACCEPT = '.json,.xlsx'
+export const QUESTION_IMPORT_MAX_MB = 10
+
