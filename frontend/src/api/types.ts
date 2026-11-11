@@ -350,14 +350,15 @@ export interface PaperUpdatePayload {
   blank_mode?: BlankMode
 }
 
+/** `GET /attempts/{id}` 只回精简 paper（id/title/duration_minutes/blank_mode），其余字段可选。 */
 export interface AttemptPaper {
   id: number
-  class_id: number
+  class_id?: number
   title: string
-  mode: PaperMode
+  mode?: PaperMode
   blank_mode: BlankMode
   duration_minutes: number
-  status: PaperStatus
+  status?: PaperStatus
 }
 
 export interface AttemptQuestion {
@@ -384,6 +385,16 @@ export interface AttemptDetail {
   full_score: number
   paper: AttemptPaper
   questions: AttemptQuestion[]
+  /** M2D：服务端当前时间与剩余秒数，开卷响应同步下发；无时限卷 remaining_seconds 为 null。 */
+  server_now?: string
+  remaining_seconds?: number | null
+}
+
+/** `GET /attempts/{id}` 恢复作答：已存答案 + 服务端时钟，题目不含标准答案。 */
+export interface AttemptResume extends AttemptDetail {
+  answers: Record<string, unknown>
+  server_now: string
+  remaining_seconds: number | null
 }
 
 export interface AnswerSaveResult {
@@ -445,15 +456,11 @@ export interface AttemptResult {
   grading_ms: number | null
 }
 
+/** 复核请求体：后端为单条平铺字段（`answer_record_id` / `new_score` / `comment`）。 */
 export interface ReviewItemPayload {
   answer_record_id: number
   new_score: number
   comment?: string
-}
-
-/** 派工包请求体为 {items:[...]}；当前后端为单条平铺，client 层已在同一次请求里兼容两种键。 */
-export interface ReviewRequestPayload {
-  items: ReviewItemPayload[]
 }
 
 export interface PaperAttemptItem {

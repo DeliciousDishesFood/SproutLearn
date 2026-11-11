@@ -66,6 +66,11 @@ const timeUp = ref(false)
 const remainingSeconds = ref<number | null>(null)
 const deadlineTimestamp = ref<number | null>(null)
 const now = ref(Date.now())
+/** 服务端时钟偏移：server_now - Date.now()，抵消本机时钟误差。 */
+let serverOffsetMs = 0
+/** 服务端下发的剩余秒数与其对应的服务端时间戳，作为倒计时基准。 */
+let remainingBase: number | null = null
+let remainingBaseAt = 0
 
 const timers = new Map<number, number>()
 const inflight = new Map<number, Promise<void>>()
@@ -294,13 +299,45 @@ function stopTicker(): void {
   }
 }
 
+/**
+ * 用服务端时间校准倒计时：offset = server_now - Date.now()，
+ * 剩余秒数从 remaining_seconds 按服务端流逝时间递减。
+ * 响应缺字段（旧后端/草稿兜底）时退回 deadline_at 与本机时钟。
+ */
+function syncServerClock(
+  serverNow: string | undefined,
+  remaining: number | null | undefined,
+  deadlineAt: string | null,
+): void {
+  const serverTimestamp = parseDateTime(serverNow)
+  if (serverTimestamp !== null && remaining !== undefined) {
+    serverOffsetMs = serverTimestamp - Date.now()
+    remainingBase = remaining
+    remainingBaseAt = serverTimestamp
+    deadlineTimestamp.value = null
+    remainingSeconds.value = remaining
+    return
+  }
+  serverOffsetMs = 0
+  remainingBase = null
+  deadlineTimestamp.value = parseDateTime(deadlineAt)
+  remainingSeconds.value = null
+}
+
 function tick(): void {
   now.value = Date.now()
-  if (deadlineTimestamp.value === null) {
+  if (remainingBase !== null) {
+    const elapsed = Math.floor((now.value + serverOffsetMs - remainingBaseAt) / 1000)
+    remainingSeconds.value = Math.max(0, remainingBase - elapsed)
+  } else if (deadlineTimestamp.value !== null) {
+    remainingSeconds.value = Math.max(
+      0,
+      Math.ceil((deadlineTimestamp.value - (now.value + serverOffsetMs)) / 1000),
+    )
+  } else {
     remainingSeconds.value = null
     return
   }
-  remainingSeconds.value = Math.max(0, Math.ceil((deadlineTimestamp.value - now.value) / 1000))
   if (remainingSeconds.value === 0 && !timeUp.value) {
     timeUp.value = true
     stopTicker()
@@ -392,11 +429,46 @@ async function resyncCachedAnswers(): Promise<void> {
   )
 }
 
+/** 把作答数据落到页面状态；返回 false 表示已给出错误提示或已跳转成绩页。 */
+async function hydrate(
+  data: AttemptDetail,
+  serverAnswers: Record<string, unknown> | null,
+): Promise<boolean> {
+  if (data.id !== attemptId) {
+    loadError.value = '作答记录与试卷不匹配，请从试卷列表重新进入'
+    return false
+  }
+  if (data.status !== 'doing') {
+    await router.replace({
+      name: 'student-attempt-result',
+      params: { id: String(attemptId) },
+    })
+    return false
+  }
+  attempt.value = data
+  const initial = buildInitialAnswers(data.questions)
+  if (serverAnswers) {
+    for (const question of data.questions) {
+      const value = serverAnswers[String(question.id)]
+      if (value !== undefined) initial[question.id] = value
+    }
+  }
+  answers.value = initial
+  for (const question of data.questions) {
+    saveStates[question.id] = isAnswerEmpty(question.type, initial[question.id]) ? 'idle' : 'saved'
+  }
+  currentIndex.value = firstUnansweredIndex()
+  persist()
+  return true
+}
+
 async function load(): Promise<void> {
   loading.value = true
   loadError.value = ''
   attempt.value = null
   answers.value = {}
+  remainingBase = null
+  deadlineTimestamp.value = null
   if (!Number.isFinite(attemptId) || attemptId <= 0) {
     loadError.value = '作答地址无效'
     loading.value = false
@@ -411,48 +483,38 @@ async function load(): Promise<void> {
 
   const cached = readAttemptDraft(attemptId)
   try {
-    const data =
-      cached?.attempt ?? (Number.isFinite(paperId) && paperId > 0
-        ? await papersApi.startAttempt(paperId)
-        : null)
-    if (!data) {
-      loadError.value = '缺少试卷信息，请从试卷列表进入答题页'
-      return
-    }
-    if (data.id !== attemptId) {
-      loadError.value = '作答记录与试卷不匹配，请从试卷列表重新进入'
-      return
-    }
-    if (data.status !== 'doing') {
-      await router.replace({
-        name: 'student-attempt-result',
-        params: { id: String(attemptId) },
-      })
-      return
-    }
-    attempt.value = data
-    const initial = buildInitialAnswers(data.questions)
-    if (cached && cached.attempt.id === attemptId) {
-      for (const question of data.questions) {
-        const value = cached.answers[question.id] ?? cached.answers[String(question.id)]
-        if (value !== undefined) initial[question.id] = value
-      }
-    }
-    answers.value = initial
-    for (const question of data.questions) {
-      saveStates[question.id] = isAnswerEmpty(question.type, initial[question.id]) ? 'idle' : 'saved'
-    }
-    currentIndex.value = firstUnansweredIndex()
-    persist()
-
-    deadlineTimestamp.value = parseDateTime(data.deadline_at)
+    // 服务端是唯一事实来源：进入即拉取已存答案与服务端时钟。
+    const data = await attemptsApi.resume(attemptId)
+    if (!(await hydrate(data, data.answers))) return
+    syncServerClock(data.server_now, data.remaining_seconds, data.deadline_at)
     startTicker()
-
-    if (cached && cached.attempt.id === attemptId && targetsHaveAnswers()) {
-      void resyncCachedAnswers()
-    }
   } catch (err) {
-    loadError.value = mapError(err)
+    if (isApiError(err) && (err.code === 40301 || err.code === 40302)) {
+      loadError.value = mapError(err)
+      return
+    }
+    // 断网兜底：草稿仅供还原界面，联网后由自动保存回写服务端。
+    try {
+      const fallback =
+        cached?.attempt ??
+        (Number.isFinite(paperId) && paperId > 0 ? await papersApi.startAttempt(paperId) : null)
+      if (!fallback) {
+        loadError.value = '缺少试卷信息，请从试卷列表进入答题页'
+        return
+      }
+      if (cached && cached.attempt.id === attemptId) {
+        if (!(await hydrate(fallback, cached.answers))) return
+        syncServerClock(fallback.server_now, fallback.remaining_seconds, fallback.deadline_at)
+        startTicker()
+        if (targetsHaveAnswers()) void resyncCachedAnswers()
+        return
+      }
+      if (!(await hydrate(fallback, null))) return
+      syncServerClock(fallback.server_now, fallback.remaining_seconds, fallback.deadline_at)
+      startTicker()
+    } catch (fallbackErr) {
+      loadError.value = mapError(fallbackErr)
+    }
   } finally {
     loading.value = false
   }
