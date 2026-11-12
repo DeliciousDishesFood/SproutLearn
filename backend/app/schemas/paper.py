@@ -9,11 +9,13 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 Mode = Literal["fixed", "random"]
 Difficulty = Literal["easy", "medium", "hard"]
 BlankMode = Literal["smart", "strict"]
+PaperKind = Literal["practice", "homework", "exam"]
 
 
 class PaperCreateRequest(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     mode: Mode
+    kind: PaperKind = "practice"
     question_ids: list[int] | None = None
     bank_ids: list[int] | None = None
     knowledge_tag: str | None = None
@@ -52,6 +54,7 @@ class PaperUpdateRequest(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=200)
     duration_minutes: int | None = Field(default=None, ge=0)
     blank_mode: BlankMode | None = None
+    kind: PaperKind | None = None
 
     @field_validator("title")
     @classmethod

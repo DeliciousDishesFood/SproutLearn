@@ -22,6 +22,7 @@ from app.repositories.student_repo import StudentRepository
 from app.repositories.teacher_repo import TeacherRepository
 from app.schemas.auth import LoginRequest, TeacherRegisterRequest
 from app.services.code_service import generate_class_code  # noqa: F401 - 保持编码服务统一入口
+from app.services import growth_service
 from app.utils import cache_keys
 from app.utils.security import (
     burn_password_check,
@@ -148,6 +149,7 @@ def _login_student(db: Session, payload: LoginRequest) -> dict:
 
     rate_limit.clear_failure(fail_key)
     student.last_login_at = now()
+    growth_service.apply_login(db, student.id)
     db.commit()
     token = issue_token(user_id=student.id, role="student", class_id=klass.id)
     return {

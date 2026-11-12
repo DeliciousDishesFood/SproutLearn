@@ -225,6 +225,8 @@ export type QuestionDifficulty = 'easy' | 'medium' | 'hard'
 export type QuestionStatus = 'draft' | 'published'
 export type PaperStatus = 'draft' | 'published' | 'closed'
 export type PaperMode = 'fixed' | 'random'
+/** M3.2 试卷用途：练习 / 作业 / 考试，后端默认 practice。 */
+export type PaperKind = 'practice' | 'homework' | 'exam'
 export type BlankMode = 'smart' | 'strict'
 export type AttemptStatus = 'doing' | 'submitted' | 'graded'
 
@@ -378,6 +380,8 @@ export interface PaperItem {
   class_id: number
   title: string
   mode: PaperMode
+  /** 后端已默认 practice；过渡期接口可能暂不下发，展示时按 practice 回退。 */
+  kind?: PaperKind
   blank_mode: BlankMode
   duration_minutes: number
   shuffle: boolean
@@ -416,6 +420,8 @@ export interface PaperDetail extends PaperItem {
 export interface PaperCreatePayload {
   title: string
   mode: PaperMode
+  /** M3.2 用途，缺省由后端按 practice 处理。 */
+  kind?: PaperKind
   question_ids?: number[]
   /** M3.1：固定组卷与 question_ids 二选一；随机组卷作为抽题范围。 */
   bank_ids?: number[]
@@ -591,5 +597,133 @@ export interface StudentListQuery extends PageQuery {
 export interface DocumentListQuery extends PageQuery {
   class_id: number
   status?: number
+}
+
+// ---------------- M3.2 工作台 / 成长 / 金句 ----------------
+
+/** 每日活跃：answers 为当日答题数；xp 学生端为经验，教师端另有 active_students。 */
+export interface ActivityDay {
+  date: string
+  answers: number
+  xp?: number
+  active_students?: number
+}
+
+/** /me/activity 与 /classes/{id}/activity 同时下发 items 与 activity 两个同值别名。 */
+export interface ActivitySummary {
+  weeks: number
+  items: ActivityDay[]
+  activity: ActivityDay[]
+}
+
+/** 等级进度：后端按 level_def 计算，progress_pct 直接用于经验条。 */
+export interface LevelInfo {
+  level: number
+  title: string
+  min_xp: number
+  next_level: number
+  next_min_xp: number
+  xp_to_next: number
+  progress_pct: number
+}
+
+export interface StudentTodayXp {
+  login_xp: number
+  practice_xp: number
+  streak_xp: number
+  total_xp: number
+  /** 后端未下发日封顶时前端不显示 /cap。 */
+  cap?: number
+}
+
+export interface StudentPendingPaper {
+  id: number
+  title: string
+  mode?: PaperMode
+  kind: PaperKind
+  status?: PaperStatus
+  question_count: number
+  total_score: number
+  duration_minutes: number
+  published_at: string | null
+  created_at?: string
+  deadline_at?: string | null
+}
+
+export interface StudentRecentAttempt {
+  attempt_id: number
+  paper_id: number
+  paper_title: string
+  kind: PaperKind
+  total_score: number
+  full_score: number
+  status: AttemptStatus
+  needs_review: boolean
+  submitted_at: string | null
+}
+
+export interface StudentWorkbench {
+  student: {
+    id: number
+    name: string
+    class_id: number
+    xp_total: number
+    streak_days: number
+  }
+  level: LevelInfo
+  xp_total: number
+  streak_days: number
+  today_xp: number
+  today: StudentTodayXp
+  /** 后端同时下发 pending / pending_papers 与 recent / recent_scores 两组别名。 */
+  pending: StudentPendingPaper[]
+  pending_papers: StudentPendingPaper[]
+  recent: StudentRecentAttempt[]
+  recent_scores: StudentRecentAttempt[]
+  activity: ActivityDay[]
+}
+
+export interface GrowthLedgerItem {
+  id: number
+  source: string
+  xp: number
+  note: string | null
+  created_at: string
+}
+
+export interface GrowthSummary {
+  xp_total: number
+  level: LevelInfo
+  ledger: GrowthLedgerItem[]
+  activity: ActivityDay[]
+}
+
+export interface ClassRankItem {
+  student_id: number
+  student_no: string
+  name: string
+  xp_total: number
+  level: number
+  title: string
+}
+
+export interface TeacherWorkbench {
+  class_id: number
+  pending_review: number
+  today_submissions: number
+  active_students: number
+  average_score: number
+  recent_papers: PaperItem[]
+  top_students: ClassRankItem[]
+  /** 后端同时下发 top_students / top5 两个同值别名。 */
+  top5: ClassRankItem[]
+  activity: ActivityDay[]
+}
+
+/** GET /quotes/random：任何情况都返回 200，source 标注 shiora|hitokoto|local。 */
+export interface QuoteResult {
+  text: string
+  from: string
+  source: 'shiora' | 'hitokoto' | 'local' | string
 }
 

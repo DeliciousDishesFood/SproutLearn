@@ -25,6 +25,7 @@ from app.repositories.paper_repo import PaperRepository
 from app.repositories.review_repo import ReviewRepository
 from app.schemas.attempt import AnswerSaveRequest, ReviewCreateRequest
 from app.services.attempt_view import attempt_time_fields
+from app.services import growth_service
 from app.services.class_service import require_owned_class
 from app.services.grading.grader import Grader
 from app.services.grading.result_service import sanitize_detail
@@ -322,6 +323,7 @@ def _result_payload(
             "class_id": paper.class_id,
             "title": paper.title,
             "mode": paper.mode,
+            "kind": paper.kind,
             "blank_mode": paper.blank_mode,
             "duration_minutes": paper.duration_minutes,
             "status": paper.status,
@@ -402,6 +404,14 @@ def submit_attempt(db: Session, current: CurrentUser, *, attempt_id: int) -> dic
     attempt.submitted_at = now
     attempt.total_score = round(total_score, 2)
     attempt.full_score = round(full_score, 2)
+    db.flush()
+    growth_service.award_submission(
+        db,
+        attempt=attempt,
+        paper=paper,
+        rows=rows,
+        results=results,
+    )
     try:
         db.commit()
     except Exception:

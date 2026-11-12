@@ -30,6 +30,7 @@ import {
   BLANK_MODE_META,
   DIFFICULTY_META,
   PAGE_SIZE,
+  PAPER_KIND_META,
   PAPER_MODE_LABEL,
   PAPER_STATUS_META,
   QUESTION_TYPE_META,
@@ -93,6 +94,9 @@ const blankModeOptions: SelectOption[] = (
 
 const statusMeta = computed(() =>
   paper.value ? PAPER_STATUS_META[paper.value.status] : null,
+)
+const kindMeta = computed(() =>
+  paper.value ? PAPER_KIND_META[paper.value.kind ?? 'practice'] : null,
 )
 const blankMeta = computed(() =>
   paper.value ? BLANK_MODE_META[paper.value.blank_mode] : null,
@@ -273,6 +277,7 @@ onMounted(loadPaper)
         <p class="eyebrow">PAPER DETAIL</p>
         <div class="split-title">
           <h1 class="page-title">{{ paper?.title || (loading ? '加载中…' : '试卷详情') }}</h1>
+          <AppTag v-if="kindMeta" :tone="kindMeta.tone">{{ kindMeta.label }}</AppTag>
           <AppTag v-if="statusMeta" :tone="statusMeta.tone" dot>{{ statusMeta.label }}</AppTag>
         </div>
         <p class="page-subtitle">
@@ -327,6 +332,10 @@ onMounted(loadPaper)
           <div>
             <dt>组卷方式</dt>
             <dd>{{ PAPER_MODE_LABEL[paper.mode] }}</dd>
+          </div>
+          <div>
+            <dt>用途</dt>
+            <dd>{{ kindMeta?.label }}</dd>
           </div>
           <div>
             <dt>题量</dt>

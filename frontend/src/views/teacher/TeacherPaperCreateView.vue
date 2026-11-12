@@ -26,11 +26,13 @@ import { useUiStore } from '@/stores/ui'
 import {
   BLANK_MODE_META,
   DIFFICULTY_META,
+  PAPER_KIND_META,
   PAPER_MODE_LABEL,
 } from '@/utils/constants'
 import type {
   BlankMode,
   PaperCreatePayload,
+  PaperKind,
   PaperMode,
   QuestionBank,
   QuestionDifficulty,
@@ -49,6 +51,7 @@ const loadingClasses = ref(false)
 
 const title = ref('')
 const mode = ref<PaperMode>('fixed')
+const kind = ref<PaperKind>('practice')
 const durationMinutes = ref(30)
 const shuffle = ref(false)
 const blankMode = ref<BlankMode>('smart')
@@ -74,6 +77,11 @@ const difficultyOptions: SelectOption[] = [
     value,
   })),
 ]
+
+const kindOptions: SelectOption[] = (Object.keys(PAPER_KIND_META) as PaperKind[]).map((value) => ({
+  label: PAPER_KIND_META[value].label,
+  value,
+}))
 
 const classOptions = computed(() =>
   classStore.classes.map((item) => ({
@@ -157,6 +165,9 @@ const validationHint = computed(() => {
   if (!Number.isFinite(duration) || duration < 0) {
     return '作答时长需为不小于 0 的整数'
   }
+  if (kind.value === 'exam' && duration <= 0) {
+    return '考试卷需设置作答时长（大于 0 分钟）'
+  }
   return ''
 })
 const canSubmit = computed(() => validationHint.value === '' && !submitting.value)
@@ -230,6 +241,11 @@ function switchMode(next: PaperMode): void {
   submitError.value = ''
 }
 
+function handleKindChange(value: string): void {
+  kind.value = value === 'homework' || value === 'exam' ? value : 'practice'
+  submitError.value = ''
+}
+
 function mapSubmitError(err: unknown): string {
   if (isApiError(err) && err.code === 40302) return '无权访问该班级资源'
   if (isApiError(err) && err.code === 40908) {
@@ -250,6 +266,7 @@ async function submit(): Promise<void> {
     const payload: PaperCreatePayload = {
       title: title.value.trim(),
       mode: mode.value,
+      kind: kind.value,
       duration_minutes: Math.max(0, Math.floor(Number(durationMinutes.value) || 0)),
       shuffle: shuffle.value,
       blank_mode: blankMode.value,
@@ -335,8 +352,17 @@ onMounted(bootstrap)
               :maxlength="200"
               class="form-grid__full"
             />
+            <AppSelect
+              :model-value="kind"
+              label="用途"
+              :options="kindOptions"
+              @update:model-value="handleKindChange"
+            />
             <label class="field">
-              <span class="field__label">作答时长</span>
+              <span class="field__label">
+                作答时长
+                <span v-if="kind === 'exam'" class="field__required">必填</span>
+              </span>
               <div class="number-field">
                 <input
                   v-model.number="durationMinutes"
@@ -349,9 +375,15 @@ onMounted(bootstrap)
                 />
                 <span class="number-field__unit">分钟</span>
               </div>
-              <span class="form-hint">填 0 表示不限时；至 0 时以服务端截止时间自动提交。</span>
+              <span class="form-hint" :class="{ 'form-hint--warning': kind === 'exam' && Number(durationMinutes) <= 0 }">
+                {{
+                  kind === 'exam'
+                    ? '考试卷必须设置大于 0 的时长；倒计时归零会自动交卷。'
+                    : '填 0 表示不限时；至 0 时以服务端截止时间自动提交。'
+                }}
+              </span>
             </label>
-            <div class="field">
+            <div class="field form-grid__full">
               <span class="field__label">创建后状态</span>
               <div class="readonly-value">
                 <AppTag tone="neutral" dot>草稿</AppTag>
@@ -568,6 +600,10 @@ onMounted(bootstrap)
               <dd>{{ PAPER_MODE_LABEL[mode] }}</dd>
             </div>
             <div>
+              <dt>用途</dt>
+              <dd>{{ PAPER_KIND_META[kind].label }}</dd>
+            </div>
+            <div>
               <dt>来源题库</dt>
               <dd class="summary__banks" :title="sourceBankTitle">{{ sourceBankLabel }}</dd>
             </div>
@@ -647,6 +683,20 @@ onMounted(bootstrap)
   color: var(--color-text-muted);
   font-size: var(--fs-xs);
   line-height: 1.5;
+}
+
+.form-hint--warning {
+  color: var(--color-warning);
+}
+
+.field__required {
+  margin-left: 4px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-warning) 14%, var(--color-surface));
+  color: var(--color-warning);
+  font-size: 10px;
+  font-weight: 600;
 }
 
 .field {

@@ -13,6 +13,7 @@ import AppCard from '@/components/base/AppCard.vue'
 import AppTag from '@/components/base/AppTag.vue'
 import {
   BLANK_MODE_META,
+  PAPER_KIND_META,
   PAPER_MODE_LABEL,
   PAPER_STATUS_META,
 } from '@/utils/constants'
@@ -30,6 +31,7 @@ const emit = defineEmits<{
 }>()
 
 const statusMeta = computed(() => PAPER_STATUS_META[props.paper.status])
+const kindMeta = computed(() => PAPER_KIND_META[props.paper.kind ?? 'practice'])
 const blankMeta = computed(
   () => BLANK_MODE_META[props.paper.blank_mode] ?? BLANK_MODE_META.smart,
 )
@@ -47,7 +49,10 @@ const canWithdraw = computed(() => props.paper.status === 'published')
           <template v-if="paper.shuffle"> · 题目乱序</template>
         </p>
       </div>
-      <AppTag :tone="statusMeta.tone" dot>{{ statusMeta.label }}</AppTag>
+      <div class="paper-card__tags">
+        <AppTag :tone="kindMeta.tone">{{ kindMeta.label }}</AppTag>
+        <AppTag :tone="statusMeta.tone" dot>{{ statusMeta.label }}</AppTag>
+      </div>
     </header>
 
     <dl class="paper-card__stats">
@@ -121,6 +126,13 @@ const canWithdraw = computed(() => props.paper.status === 'published')
 
 .paper-card__title-wrap {
   min-width: 0;
+}
+
+.paper-card__tags {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  flex-shrink: 0;
 }
 
 .paper-card__title {

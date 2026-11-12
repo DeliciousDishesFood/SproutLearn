@@ -34,6 +34,10 @@ def tinyint_unsigned():
     return SmallInteger().with_variant(mysql.TINYINT(unsigned=True), "mysql")
 
 
+def smallint_unsigned():
+    return SmallInteger().with_variant(mysql.SMALLINT(unsigned=True), "mysql")
+
+
 def tinyint():
     return SmallInteger().with_variant(mysql.TINYINT(), "mysql")
 

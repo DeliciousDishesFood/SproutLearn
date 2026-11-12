@@ -18,6 +18,7 @@ os.environ.update(
         "APP_ENV": "test",
         "SECRET_KEY": "test-secret-key-please-do-not-use-in-prod",
         "BOT_SHARED_SECRET": "test-bot-secret",
+        "BOT_SECRET_KEY": "8VPIzNCL_cmCREPbiX_0wKRZo4nb12shXsFTpjtXh6o=",
         "JWT_ALGORITHM": "HS256",
         "ACCESS_TOKEN_MINUTES": "60",
         "SESSION_IDLE_MINUTES": "30",
@@ -119,6 +120,7 @@ def client(tmp_path, monkeypatch):
 
     with TestClient(app) as test_client:
         test_client.fake_redis = fake_redis  # type: ignore[attr-defined]
+        test_client.testing_session = testing_session  # type: ignore[attr-defined]
         yield test_client
 
     app.dependency_overrides.clear()

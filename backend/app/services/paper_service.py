@@ -38,6 +38,7 @@ def _paper_item(paper: Paper) -> dict[str, Any]:
         "class_id": paper.class_id,
         "title": paper.title,
         "mode": paper.mode,
+        "kind": paper.kind,
         "blank_mode": paper.blank_mode,
         "duration_minutes": paper.duration_minutes,
         "shuffle": bool(paper.shuffle),
@@ -143,6 +144,7 @@ def create_paper(
         class_id=class_id,
         title=payload.title,
         mode=payload.mode,
+        kind=payload.kind,
         blank_mode=payload.blank_mode,
         duration_minutes=payload.duration_minutes,
         shuffle=1 if payload.shuffle else 0,
@@ -219,6 +221,8 @@ def update_paper(
         paper.duration_minutes = payload.duration_minutes
     if "blank_mode" in fields and payload.blank_mode is not None:
         paper.blank_mode = payload.blank_mode
+    if "kind" in fields and payload.kind is not None:
+        paper.kind = payload.kind
     try:
         db.commit()
     except Exception:

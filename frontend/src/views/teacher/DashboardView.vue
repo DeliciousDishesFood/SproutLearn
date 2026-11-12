@@ -1,50 +1,56 @@
-<!-- 教师工作台：班级/学生/文档/切片统计 + 最近文档 + 快捷入口。 -->
+<!-- 教师「教学工作台」：班级切换、四张今日卡、最近试卷、班级热力图与前 5 榜单（M3.2 §5.2）。 -->
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, onMounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowRight,
-  ArrowUpRight,
-  FileText,
-  Layers3,
-  LibraryBig,
-  Plus,
+  ClipboardCheck,
+  Files,
+  Gauge,
   RefreshCw,
-  UploadCloud,
+  Send,
+  Trophy,
   UsersRound,
 } from 'lucide-vue-next'
 import AppButton from '@/components/base/AppButton.vue'
 import AppEmpty from '@/components/base/AppEmpty.vue'
+import AppSelect from '@/components/base/AppSelect.vue'
 import AppSkeleton from '@/components/base/AppSkeleton.vue'
 import AppTag from '@/components/base/AppTag.vue'
-import { knowledgeApi } from '@/api/knowledge'
+import ActivityHeatmap, {
+  type HeatmapDay,
+} from '@/components/business/ActivityHeatmap.vue'
+import QuoteTypewriter from '@/components/business/QuoteTypewriter.vue'
+import { isApiError, toUserMessage } from '@/api/client'
+import { workbenchApi } from '@/api/workbench'
 import { useAuthStore } from '@/stores/auth'
 import { useClassStore } from '@/stores/class'
-import type { KnowledgeDocListItem } from '@/api/types'
-import { DASHBOARD_PAGE_SIZE } from '@/utils/constants'
-import { DOC_STATUS_META } from '@/utils/constants'
+import { PAPER_KIND_META, PAPER_STATUS_META } from '@/utils/constants'
 import { formatDateTime, formatNumber } from '@/utils/format'
-import type { DocStatusValue } from '@/types'
+import type { PaperItem, TeacherWorkbench } from '@/api/types'
+import type { SelectOption } from '@/types'
 
-interface RecentDoc extends KnowledgeDocListItem {
-  class_name: string
-  class_code: string
-}
-
+const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const classStore = useClassStore()
 
+const selectedClassId = ref('')
+const classesError = ref('')
 const loading = ref(false)
 const error = ref('')
-const recentDocs = ref<RecentDoc[]>([])
-const stats = reactive({
-  classes: 0,
-  students: 0,
-  docs: 0,
-  chunks: 0,
-  pending: 0,
-})
+const workbench = ref<TeacherWorkbench | null>(null)
+
+const classOptions = computed<SelectOption[]>(() =>
+  classStore.classes.map((item) => ({
+    label: `${item.class_name} · ${item.course_name}`,
+    value: String(item.id),
+  })),
+)
+
+const currentClass = computed(
+  () => classStore.classes.find((item) => String(item.id) === selectedClassId.value) ?? null,
+)
 
 const greeting = computed(() => {
   const hour = new Date().getHours()
@@ -54,7 +60,7 @@ const greeting = computed(() => {
   return '晚上好'
 })
 
-const today = computed(() => {
+const todayLabel = computed(() => {
   try {
     return new Intl.DateTimeFormat('zh-CN', {
       month: 'long',
@@ -66,277 +72,356 @@ const today = computed(() => {
   }
 })
 
-const hasClasses = computed(() => stats.classes > 0)
+const averageScore = computed(() => {
+  const value = workbench.value?.average_score
+  if (value === null || value === undefined || !Number.isFinite(value)) return '—'
+  return String(Math.round(value * 100) / 100)
+})
 
 const statCards = computed(() => [
   {
-    key: 'classes',
-    label: '班级总数',
-    value: stats.classes,
-    hint: '进行中的教学空间',
-    icon: UsersRound,
+    key: 'needs_review',
+    label: '待复核',
+    value: workbench.value ? formatNumber(workbench.value.pending_review) : '—',
+    hint: workbench.value?.pending_review ? '主观题等待教师确认' : '没有待复核的作答',
+    icon: ClipboardCheck,
+    tone: 'warning',
+  },
+  {
+    key: 'submitted_today',
+    label: '今日提交',
+    value: workbench.value ? formatNumber(workbench.value.today_submissions) : '—',
+    hint: '按自然日统计',
+    icon: Send,
     tone: 'primary',
   },
   {
-    key: 'students',
-    label: '学生总数',
-    value: stats.students,
-    hint: '已加入班级的学生',
-    icon: LibraryBig,
-    tone: 'accent',
-  },
-  {
-    key: 'docs',
-    label: '文档总数',
-    value: stats.docs,
-    hint: stats.pending > 0 ? `${stats.pending} 份待处理` : '全部可预览',
-    icon: FileText,
+    key: 'active_students',
+    label: '活跃学生',
+    value: workbench.value ? formatNumber(workbench.value.active_students) : '—',
+    hint: '今日有答题记录',
+    icon: UsersRound,
     tone: 'success',
   },
   {
-    key: 'chunks',
-    label: '知识切片',
-    value: stats.chunks,
-    hint: '可供课堂回看的内容',
-    icon: Layers3,
-    tone: 'neutral',
+    key: 'average_score',
+    label: '班级平均分',
+    value: averageScore.value,
+    hint: '已提交作答的平均得分',
+    icon: Gauge,
+    tone: 'accent',
   },
 ])
 
-async function loadDashboard(): Promise<void> {
-  if (loading.value) return
+const recentPapers = computed(() => (workbench.value?.recent_papers ?? []).slice(0, 6))
+const rankStudents = computed(() =>
+  (workbench.value?.top_students ?? workbench.value?.top5 ?? []).slice(0, 5),
+)
+const heatmapDays = computed<HeatmapDay[]>(() =>
+  (workbench.value?.activity ?? []).map((day) => ({
+    date: day.date,
+    count: day.answers,
+    xp: day.active_students,
+  })),
+)
+
+function kindMeta(kind: PaperItem['kind']) {
+  return PAPER_KIND_META[kind ?? 'practice']
+}
+
+function statusMeta(paper: PaperItem) {
+  return PAPER_STATUS_META[paper.status] ?? PAPER_STATUS_META.draft
+}
+
+function mapError(err: unknown): string {
+  if (isApiError(err) && err.code === 40302) return '无权访问该班级资源'
+  return toUserMessage(err)
+}
+
+function syncClassQuery(): void {
+  void router.replace({
+    query: {
+      ...route.query,
+      class_id: selectedClassId.value,
+    },
+  })
+}
+
+async function loadWorkbench(): Promise<void> {
+  if (!selectedClassId.value || loading.value) return
   loading.value = true
   error.value = ''
-  recentDocs.value = []
   try {
-    const classes = (await classStore.fetchAllClasses()) ?? []
-    const collections: RecentDoc[][] = []
-    let chunkCount = 0
-    let pendingCount = 0
-    let docLoadFailed = false
-
-    await Promise.all(
-      classes.map(async (classItem) => {
-        try {
-          const result = await knowledgeApi.listDocuments({
-            class_id: classItem.id,
-            page: 1,
-            page_size: DASHBOARD_PAGE_SIZE,
-          })
-          const items = result.list.map((doc) => ({
-            ...doc,
-            class_name: classItem.class_name,
-            class_code: classItem.class_code,
-          }))
-          collections.push(items)
-          chunkCount += items.reduce((sum, doc) => sum + doc.chunk_count, 0)
-          pendingCount += items.filter((doc) => doc.status !== 2).length
-        } catch {
-          docLoadFailed = true
-          collections.push([])
-        }
-      }),
-    )
-
-    stats.classes = classStore.classes.length
-    stats.students = classStore.classes.reduce((sum, item) => sum + item.student_count, 0)
-    stats.docs = classStore.classes.reduce((sum, item) => sum + item.doc_count, 0)
-    stats.chunks = chunkCount
-    stats.pending = pendingCount
-    recentDocs.value = collections
-      .flat()
-      .sort((left, right) => right.created_at.localeCompare(left.created_at))
-      .slice(0, 6)
-
-    if (docLoadFailed) {
-      // 文档总量来自班级聚合；最近文档局部读取失败时仍保留可用的部分。
-      recentDocs.value = recentDocs.value
-    }
+    workbench.value = await workbenchApi.teacher(Number(selectedClassId.value))
   } catch (err) {
-    error.value = err instanceof Error ? err.message : '工作台数据暂时无法加载'
+    workbench.value = null
+    error.value = mapError(err)
   } finally {
     loading.value = false
   }
 }
 
-function openDoc(doc: RecentDoc): void {
-  router.push(`/teacher/knowledge/${doc.id}`)
+async function bootstrap(): Promise<void> {
+  classesError.value = ''
+  try {
+    await classStore.fetchAllClasses()
+  } catch (err) {
+    classesError.value = toUserMessage(err)
+    return
+  }
+  if (classStore.classes.length === 0) return
+  const queryId = Number(route.query.class_id)
+  const matched = classStore.classes.find((item) => item.id === queryId)
+  selectedClassId.value = String(matched ? matched.id : classStore.classes[0].id)
+  if (!matched) syncClassQuery()
+  await loadWorkbench()
 }
 
-function statusMeta(status: number): { label: string; tone: 'neutral' | 'warning' | 'success' | 'danger' } {
-  return DOC_STATUS_META[status as DocStatusValue] ?? DOC_STATUS_META[0]
+function handleClassChange(value: string): void {
+  if (value === selectedClassId.value) return
+  selectedClassId.value = value
+  workbench.value = null
+  error.value = ''
+  syncClassQuery()
+  void loadWorkbench()
 }
 
-onMounted(loadDashboard)
+function openPaper(paper: PaperItem): void {
+  void router.push({
+    path: `/teacher/papers/${paper.id}`,
+    query: { class_id: String(paper.class_id) },
+  })
+}
+
+function gotoCreate(): void {
+  void router.push({
+    path: '/teacher/papers/new',
+    query: selectedClassId.value ? { class_id: selectedClassId.value } : undefined,
+  })
+}
+
+onMounted(bootstrap)
 </script>
 
 <template>
   <div class="page dashboard-page">
     <header class="page-head dashboard-head">
       <div class="page-head__text">
-        <p class="eyebrow">TEACHING OVERVIEW</p>
-        <h2 class="page-title">{{ greeting }}，{{ auth.displayName || '老师' }}</h2>
-        <p class="page-subtitle">今天也一起把课堂资料，整理成学生伸手就能摘到的知识。</p>
+        <p class="eyebrow">TEACHING DESK</p>
+        <h1 class="page-title">{{ greeting }}，{{ auth.displayName || '老师' }}</h1>
+        <p class="page-subtitle">
+          {{ currentClass ? `${currentClass.class_name} · ${currentClass.course_name}` : '先创建一个班级，再开始今天的教学。' }}
+        </p>
       </div>
-      <div class="dashboard-date">
-        <span class="dashboard-date__day">{{ today }}</span>
-        <button class="icon-btn" type="button" title="刷新数据" aria-label="刷新工作台数据" @click="loadDashboard">
+      <div class="dashboard-actions">
+        <AppSelect
+          :model-value="selectedClassId"
+          label="当前班级"
+          :options="classOptions"
+          :disabled="classStore.classes.length === 0"
+          class="class-select"
+          @update:model-value="handleClassChange"
+        />
+        <span class="dashboard-date">{{ todayLabel }}</span>
+        <button
+          class="icon-btn"
+          type="button"
+          title="刷新工作台"
+          aria-label="刷新工作台数据"
+          :disabled="!selectedClassId || loading"
+          @click="loadWorkbench"
+        >
           <RefreshCw :size="16" :stroke-width="1.8" />
         </button>
       </div>
     </header>
 
-    <div v-if="loading" class="content-stack" aria-busy="true">
-      <div class="stat-grid">
-        <div v-for="index in 4" :key="index" class="stat-card">
-          <AppSkeleton variant="stat" />
-        </div>
-      </div>
-      <div class="panel panel-body">
-        <AppSkeleton variant="title" />
-        <div class="dashboard-skeleton-list">
-          <AppSkeleton v-for="index in 5" :key="index" variant="text" width="100%" />
-        </div>
-      </div>
-    </div>
-
-    <div v-else-if="error" class="panel">
-      <AppEmpty error title="工作台暂时无法加载" :description="error">
+    <section v-if="classesError" class="panel">
+      <AppEmpty error title="班级列表暂时无法加载" :description="classesError">
         <template #action>
-          <AppButton variant="secondary" @click="loadDashboard">
+          <AppButton variant="secondary" @click="bootstrap">
             <RefreshCw :size="15" :stroke-width="1.8" />
             重新加载
           </AppButton>
         </template>
       </AppEmpty>
-    </div>
+    </section>
+
+    <section v-else-if="classStore.classes.length === 0 && !classStore.loading" class="panel">
+      <AppEmpty
+        title="从第一个班级开始"
+        description="创建班级后，学生的提交、成绩与活跃度会汇总到教学工作台。"
+      >
+        <template #action>
+          <router-link to="/teacher/classes">
+            <AppButton variant="primary">创建班级</AppButton>
+          </router-link>
+        </template>
+      </AppEmpty>
+    </section>
 
     <template v-else>
-      <div class="stat-grid">
-        <article
-          v-for="card in statCards"
-          :key="card.key"
-          class="stat-card"
-          :class="`stat-card--${card.tone}`"
-        >
-          <span class="stat-card__icon" aria-hidden="true">
-            <component :is="card.icon" :size="19" :stroke-width="1.8" />
-          </span>
-          <p class="stat-card__label">{{ card.label }}</p>
-          <p class="stat-card__value tabular">{{ formatNumber(card.value) }}</p>
-          <p class="stat-card__hint">{{ card.hint }}</p>
-        </article>
+      <p v-if="error" class="soft-notice" role="status">
+        {{ error }}，当前展示的是空工作台。
+      </p>
+
+      <div v-if="loading && !workbench" class="content-stack" aria-busy="true">
+        <div class="stat-grid">
+          <div v-for="index in 4" :key="index" class="panel panel-body">
+            <AppSkeleton variant="stat" />
+          </div>
+        </div>
+        <div class="panel panel-body">
+          <AppSkeleton variant="title" />
+          <AppSkeleton variant="text" :rows="4" />
+        </div>
       </div>
 
-      <div class="dashboard-grid">
-        <section class="panel">
+      <template v-else>
+        <div class="stat-grid">
+          <article
+            v-for="card in statCards"
+            :key="card.key"
+            class="stat-card"
+            :class="`stat-card--${card.tone}`"
+          >
+            <span class="stat-card__icon" aria-hidden="true">
+              <component :is="card.icon" :size="19" :stroke-width="1.8" />
+            </span>
+            <p class="stat-card__label">{{ card.label }}</p>
+            <p class="stat-card__value tabular">{{ card.value }}</p>
+            <p class="stat-card__hint">{{ card.hint }}</p>
+          </article>
+        </div>
+
+        <div class="workbench-grid">
+          <section class="panel" aria-labelledby="papers-title">
+            <header class="panel-head">
+              <div>
+                <h2 id="papers-title" class="section-title">最近试卷</h2>
+                <p class="section-note">按创建时间排序，点击进入详情发布或查看成绩。</p>
+              </div>
+              <div class="panel-head__actions">
+                <router-link
+                  class="panel-link"
+                  :to="{ path: '/teacher/papers', query: { class_id: selectedClassId } }"
+                >
+                  全部试卷
+                  <ArrowRight :size="14" :stroke-width="1.9" />
+                </router-link>
+                <AppButton variant="secondary" size="sm" @click="gotoCreate">
+                  新建试卷
+                </AppButton>
+              </div>
+            </header>
+
+            <div v-if="recentPapers.length > 0" class="paper-list">
+              <button
+                v-for="paper in recentPapers"
+                :key="paper.id"
+                class="paper-item"
+                type="button"
+                @click="openPaper(paper)"
+              >
+                <span class="paper-item__icon">
+                  <Files :size="17" :stroke-width="1.7" aria-hidden="true" />
+                </span>
+                <span class="paper-item__main">
+                  <span class="paper-item__title truncate">{{ paper.title }}</span>
+                  <span class="paper-item__meta">
+                    <AppTag :tone="kindMeta(paper.kind).tone">{{ kindMeta(paper.kind).label }}</AppTag>
+                    <span>{{ paper.question_count }} 题 · {{ paper.total_score }} 分</span>
+                    <span>
+                      {{ paper.published_at ? `发布于 ${formatDateTime(paper.published_at)}` : `创建于 ${formatDateTime(paper.created_at)}` }}
+                    </span>
+                  </span>
+                </span>
+                <AppTag :tone="statusMeta(paper).tone" dot>{{ statusMeta(paper).label }}</AppTag>
+                <ArrowRight class="paper-item__arrow" :size="15" :stroke-width="1.9" aria-hidden="true" />
+              </button>
+            </div>
+
+            <AppEmpty
+              v-else
+              compact
+              title="这个班还没有试卷"
+              description="从题库组一份练习、作业或考试，发布后学生即可作答。"
+            >
+              <template #action>
+                <AppButton variant="primary" size="sm" @click="gotoCreate">新建试卷</AppButton>
+              </template>
+            </AppEmpty>
+          </section>
+
+          <section class="panel" aria-labelledby="rank-title">
+            <header class="panel-head">
+              <div>
+                <h2 id="rank-title" class="section-title">班级榜</h2>
+                <p class="section-note">按累计经验排序，展示前 5 名。</p>
+              </div>
+              <Trophy :size="18" :stroke-width="1.7" aria-hidden="true" class="rank-icon" />
+            </header>
+
+            <ol v-if="rankStudents.length > 0" class="rank-list">
+              <li
+                v-for="(student, index) in rankStudents"
+                :key="student.student_id"
+                class="rank-item"
+              >
+                <span class="rank-item__index tabular" :class="`rank-item__index--${index + 1}`">
+                  {{ index + 1 }}
+                </span>
+                <span class="rank-item__avatar">{{ student.name.trim().slice(0, 1) || '学' }}</span>
+                <span class="rank-item__main">
+                  <span class="rank-item__name truncate">{{ student.name }}</span>
+                  <span class="rank-item__meta">
+                    Lv.{{ student.level }}
+                    <template v-if="student.title"> · {{ student.title }}</template>
+                  </span>
+                </span>
+                <span class="rank-item__xp tabular">{{ formatNumber(student.xp_total) }}</span>
+              </li>
+            </ol>
+
+            <AppEmpty
+              v-else
+              compact
+              title="还没有经验数据"
+              description="学生完成练习或提交作业后，榜单会逐步生成。"
+            />
+          </section>
+        </div>
+
+        <section class="panel" aria-labelledby="class-activity-title">
           <header class="panel-head">
             <div>
-              <h3 class="section-title">最近文档</h3>
-              <p class="section-note">按上传时间排序，最多展示 6 份。</p>
+              <h2 id="class-activity-title" class="section-title">近 12 周班级活跃</h2>
+              <p class="section-note">格子颜色按当日答题量分档；悬停可看当天题量与活跃人数。</p>
             </div>
-            <router-link class="dashboard-link" to="/teacher/knowledge">
-              去知识库
-              <ArrowRight :size="14" :stroke-width="1.9" />
-            </router-link>
           </header>
-
-          <div v-if="recentDocs.length > 0" class="recent-list">
-            <button
-              v-for="doc in recentDocs"
-              :key="doc.id"
-              class="recent-item"
-              type="button"
-              @click="openDoc(doc)"
-            >
-              <span class="recent-item__icon">
-                <FileText :size="17" :stroke-width="1.7" aria-hidden="true" />
-              </span>
-              <span class="recent-item__main">
-                <span class="recent-item__title truncate">{{ doc.title }}</span>
-                <span class="recent-item__meta">
-                  {{ doc.class_name }} · {{ doc.file_ext.toUpperCase() }} ·
-                  {{ formatDateTime(doc.created_at) }}
-                </span>
-              </span>
-              <AppTag :tone="statusMeta(doc.status).tone">{{ statusMeta(doc.status).label }}</AppTag>
-              <ArrowUpRight class="recent-item__arrow" :size="16" :stroke-width="1.8" aria-hidden="true" />
-            </button>
+          <div class="panel-body">
+            <ActivityHeatmap
+              :days="heatmapDays"
+              :weeks="12"
+              count-label="答题"
+              extra-label="活跃"
+              empty-hint="本班还没有答题记录，发布第一份练习后这里就会亮起来。"
+            />
           </div>
-
-          <AppEmpty
-            v-else-if="hasClasses"
-            compact
-            title="还没有课程文档"
-            description="上传第一份课件后，最近文档会在这里持续出现。"
-          >
-            <template #action>
-              <router-link to="/teacher/knowledge">
-                <AppButton variant="secondary" size="sm">上传课程文档</AppButton>
-              </router-link>
-            </template>
-          </AppEmpty>
-
-          <AppEmpty
-            v-else
-            compact
-            title="从第一个班级开始"
-            description="创建班级后，学生可用邀请码加入你的课堂。"
-          >
-            <template #action>
-              <router-link to="/teacher/classes">
-                <AppButton variant="primary" size="sm">
-                  <Plus :size="15" :stroke-width="2" />
-                  创建班级
-                </AppButton>
-              </router-link>
-            </template>
-          </AppEmpty>
         </section>
 
-        <aside class="quick-panel">
-          <p class="eyebrow">QUICK START</p>
-          <h3 class="quick-panel__title">今天要做点什么？</h3>
-          <p class="quick-panel__lead">从三件小事开始，让班级知识库保持生长。</p>
-
-          <div class="quick-actions">
-            <router-link to="/teacher/classes" class="quick-action">
-              <span class="quick-action__icon quick-action__icon--primary">
-                <Plus :size="17" :stroke-width="1.9" />
-              </span>
-              <span class="quick-action__copy">
-                <strong>创建一个新班级</strong>
-                <small>生成班级编号与邀请码</small>
-              </span>
-              <ArrowUpRight :size="15" :stroke-width="1.8" aria-hidden="true" />
-            </router-link>
-
-            <router-link to="/teacher/knowledge" class="quick-action">
-              <span class="quick-action__icon quick-action__icon--accent">
-                <UploadCloud :size="17" :stroke-width="1.9" />
-              </span>
-              <span class="quick-action__copy">
-                <strong>上传课程文档</strong>
-                <small>支持 PDF、Word、PPT、TXT</small>
-              </span>
-              <ArrowUpRight :size="15" :stroke-width="1.8" aria-hidden="true" />
-            </router-link>
-
-            <router-link to="/teacher/classes" class="quick-action">
-              <span class="quick-action__icon quick-action__icon--neutral">
-                <UsersRound :size="17" :stroke-width="1.9" />
-              </span>
-              <span class="quick-action__copy">
-                <strong>查看学生名单</strong>
-                <small>确认入班与 QQ 绑定状态</small>
-              </span>
-              <ArrowUpRight :size="15" :stroke-width="1.8" aria-hidden="true" />
-            </router-link>
+        <section class="panel quote-panel" aria-labelledby="teacher-quote-title">
+          <header class="panel-head">
+            <div>
+              <h2 id="teacher-quote-title" class="section-title">每日一句</h2>
+              <p class="section-note">把今天的好句子，带进课堂。</p>
+            </div>
+          </header>
+          <div class="panel-body">
+            <QuoteTypewriter />
           </div>
-
-          <p class="quick-note">知识库会陪学生走过整个单元，记得常回来看一眼。</p>
-        </aside>
-      </div>
+        </section>
+      </template>
     </template>
   </div>
 </template>
@@ -346,17 +431,35 @@ onMounted(loadDashboard)
   align-items: flex-end;
 }
 
-.dashboard-date {
+.dashboard-actions {
   display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  padding-bottom: 4px;
+  align-items: flex-end;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
 }
 
-.dashboard-date__day {
+.class-select {
+  width: 260px;
+}
+
+.dashboard-date {
+  padding-bottom: 10px;
   color: var(--color-text-muted);
   font-size: var(--fs-sm);
   white-space: nowrap;
+}
+
+.dashboard-actions .icon-btn {
+  margin-bottom: 2px;
+}
+
+.soft-notice {
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid color-mix(in srgb, var(--color-warning) 30%, var(--color-border));
+  border-radius: var(--radius-xs);
+  background: color-mix(in srgb, var(--color-warning) 8%, var(--color-surface));
+  color: var(--color-text-muted);
+  font-size: var(--fs-xs);
 }
 
 .stat-grid {
@@ -388,16 +491,16 @@ onMounted(loadDashboard)
   opacity: 0.55;
 }
 
-.stat-card--accent::after {
-  background: var(--color-accent);
+.stat-card--warning::after {
+  background: var(--color-warning);
 }
 
 .stat-card--success::after {
   background: var(--color-success);
 }
 
-.stat-card--neutral::after {
-  background: var(--color-border-strong);
+.stat-card--accent::after {
+  background: var(--color-accent);
 }
 
 .stat-card__icon {
@@ -412,9 +515,9 @@ onMounted(loadDashboard)
   background: var(--color-primary-soft);
 }
 
-.stat-card--accent .stat-card__icon {
-  color: color-mix(in srgb, var(--color-accent) 82%, var(--color-text));
-  background: color-mix(in srgb, var(--color-accent) 12%, var(--color-surface));
+.stat-card--warning .stat-card__icon {
+  color: var(--color-warning);
+  background: color-mix(in srgb, var(--color-warning) 10%, var(--color-surface));
 }
 
 .stat-card--success .stat-card__icon {
@@ -422,9 +525,9 @@ onMounted(loadDashboard)
   background: color-mix(in srgb, var(--color-success) 10%, var(--color-surface));
 }
 
-.stat-card--neutral .stat-card__icon {
-  color: var(--color-text-muted);
-  background: var(--color-surface-alt);
+.stat-card--accent .stat-card__icon {
+  color: color-mix(in srgb, var(--color-accent) 82%, var(--color-text));
+  background: color-mix(in srgb, var(--color-accent) 12%, var(--color-surface));
 }
 
 .stat-card__label {
@@ -446,21 +549,22 @@ onMounted(loadDashboard)
   font-size: var(--fs-xs);
 }
 
-.dashboard-skeleton-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-3);
-  margin-top: var(--sp-4);
-}
-
-.dashboard-grid {
+.workbench-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.8fr) minmax(280px, 1fr);
+  grid-template-columns: minmax(0, 1.5fr) minmax(280px, 1fr);
   gap: var(--sp-5);
   align-items: start;
+  margin-bottom: var(--sp-5);
 }
 
-.dashboard-link {
+.panel-head__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.panel-link {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -468,12 +572,12 @@ onMounted(loadDashboard)
   font-weight: 600;
 }
 
-.recent-list {
+.paper-list {
   display: flex;
   flex-direction: column;
 }
 
-.recent-item {
+.paper-item {
   display: flex;
   align-items: center;
   gap: var(--sp-3);
@@ -486,20 +590,20 @@ onMounted(loadDashboard)
   transition: background-color 160ms ease-out;
 }
 
-.recent-item:last-child {
+.paper-item:last-child {
   border-bottom: 0;
 }
 
-.recent-item:hover {
+.paper-item:hover {
   background: var(--color-surface-alt);
 }
 
-.recent-item:hover .recent-item__arrow {
+.paper-item:hover .paper-item__arrow {
   color: var(--color-primary);
-  transform: translate(1px, -1px);
+  transform: translateX(2px);
 }
 
-.recent-item__icon {
+.paper-item__icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -511,131 +615,112 @@ onMounted(loadDashboard)
   background: var(--color-primary-soft);
 }
 
-.recent-item__main {
+.paper-item__main {
   display: flex;
   flex-direction: column;
+  gap: 3px;
   min-width: 0;
-  flex: 1 1 auto;
+  flex: 1;
 }
 
-.recent-item__title {
+.paper-item__title {
   font-size: var(--fs-sm);
   font-weight: 600;
 }
 
-.recent-item__meta {
-  margin-top: 2px;
+.paper-item__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
   color: var(--color-text-muted);
   font-size: var(--fs-xs);
 }
 
-.recent-item__arrow {
+.paper-item__arrow {
   flex-shrink: 0;
   color: var(--color-text-muted);
   transition: color 160ms ease-out, transform 160ms ease-out;
 }
 
-.quick-panel {
-  padding: var(--sp-5);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background:
-    radial-gradient(circle at 100% 0, color-mix(in srgb, var(--color-accent) 9%, transparent) 0, transparent 40%),
-    var(--color-surface);
-  box-shadow: var(--shadow-1);
+.rank-icon {
+  color: var(--color-accent);
 }
 
-.quick-panel__title {
-  font-size: var(--fs-lg);
-}
-
-.quick-panel__lead {
-  margin-top: var(--sp-1);
-  color: var(--color-text-muted);
-  font-size: var(--fs-sm);
-}
-
-.quick-actions {
+.rank-list {
   display: flex;
   flex-direction: column;
-  gap: var(--sp-2);
-  margin-top: var(--sp-5);
+  padding: var(--sp-2) var(--sp-5) var(--sp-3);
 }
 
-.quick-action {
+.rank-item {
   display: flex;
   align-items: center;
   gap: var(--sp-3);
-  padding: var(--sp-3);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  color: var(--color-text);
-  background: var(--color-surface-alt);
-  transition: border-color 160ms ease-out, background-color 160ms ease-out, transform 160ms ease-out;
+  padding: var(--sp-2) 0;
+  border-bottom: 1px solid var(--color-border);
 }
 
-.quick-action:hover {
-  color: var(--color-text);
-  border-color: color-mix(in srgb, var(--color-primary) 30%, var(--color-border));
-  background: var(--color-surface);
-  transform: translateY(-1px);
+.rank-item:last-child {
+  border-bottom: 0;
 }
 
-.quick-action__icon {
+.rank-item__index {
+  width: 22px;
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  text-align: center;
+}
+
+.rank-item__index--1,
+.rank-item__index--2,
+.rank-item__index--3 {
+  color: color-mix(in srgb, var(--color-accent) 82%, var(--color-text));
+}
+
+.rank-item__avatar {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
   flex-shrink: 0;
-  border-radius: var(--radius-xs);
-}
-
-.quick-action__icon--primary {
+  border-radius: 999px;
   color: var(--color-primary);
   background: var(--color-primary-soft);
+  font-size: var(--fs-xs);
+  font-weight: 600;
 }
 
-.quick-action__icon--accent {
-  color: color-mix(in srgb, var(--color-accent) 82%, var(--color-text));
-  background: color-mix(in srgb, var(--color-accent) 13%, var(--color-surface));
-}
-
-.quick-action__icon--neutral {
-  color: var(--color-text-muted);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-}
-
-.quick-action__copy {
+.rank-item__main {
   display: flex;
   flex-direction: column;
+  gap: 1px;
   min-width: 0;
   flex: 1;
-  line-height: 1.4;
 }
 
-.quick-action__copy strong {
+.rank-item__name {
   font-size: var(--fs-sm);
+  font-weight: 600;
 }
 
-.quick-action__copy small {
+.rank-item__meta {
   color: var(--color-text-muted);
   font-size: var(--fs-xs);
 }
 
-.quick-action > svg {
+.rank-item__xp {
   flex-shrink: 0;
-  color: var(--color-text-muted);
+  color: var(--color-primary);
+  font-size: var(--fs-sm);
+  font-weight: 700;
 }
 
-.quick-note {
-  margin-top: var(--sp-4);
-  padding-top: var(--sp-3);
-  border-top: 1px solid var(--color-border);
-  color: var(--color-text-muted);
-  font-size: var(--fs-xs);
-  line-height: 1.6;
+.quote-panel {
+  max-width: 640px;
 }
 
 @media (max-width: 1180px) {
@@ -644,15 +729,23 @@ onMounted(loadDashboard)
   }
 }
 
-@media (max-width: 900px) {
-  .dashboard-grid {
+@media (max-width: 1023px) {
+  .workbench-grid {
     grid-template-columns: 1fr;
+  }
+
+  .quote-panel {
+    max-width: none;
   }
 }
 
 @media (max-width: 560px) {
   .stat-grid {
     grid-template-columns: 1fr;
+  }
+
+  .class-select {
+    width: 100%;
   }
 }
 </style>

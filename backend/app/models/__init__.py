@@ -1,10 +1,12 @@
-"""模型包：统一导入，保证 Base.metadata 包含 M1 13 表 + M2A/M2B/M3.1 表。"""
+"""模型包：统一导入，保证 Base.metadata 包含 M1 13 表 + M2A/M2B/M3.1/M3.2 表。"""
 
 from app.models.answer_record import AnswerRecord
 from app.models.attempt import Attempt
 from app.models.base import Base
 from app.models.class_ import Class
+from app.models.class_bot_config import ClassBotConfig
 from app.models.class_invite import ClassInvite
+from app.models.class_xp_switch import ClassXpSwitch
 from app.models.difficulty_factor import DifficultyFactor
 from app.models.grading_config import GradingConfig
 from app.models.grading_result import GradingResult
@@ -19,16 +21,22 @@ from app.models.question import Question
 from app.models.question_bank import QuestionBank
 from app.models.review import Review
 from app.models.student import Student
+from app.models.student_daily_xp import StudentDailyXp
 from app.models.teacher import Teacher
 from app.models.xp_config import XpConfig
+from app.models.xp_ledger import XpLedger
 from app.models.xp_limit_config import XpLimitConfig
 
 __all__ = [
     "Base",
     "Teacher",
     "Class",
+    "ClassBotConfig",
     "ClassInvite",
+    "ClassXpSwitch",
     "Student",
+    "StudentDailyXp",
+    "XpLedger",
     "QqBinding",
     "XpConfig",
     "DifficultyFactor",

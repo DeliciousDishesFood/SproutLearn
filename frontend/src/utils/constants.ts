@@ -2,6 +2,7 @@
 import type {
   BlankMode,
   AttemptStatus,
+  PaperKind,
   PaperMode,
   PaperStatus,
   QuestionDifficulty,
@@ -199,6 +200,13 @@ export const PAPER_STATUS_META: Record<PaperStatus, { label: string; tone: TagTo
 export const PAPER_MODE_LABEL: Record<PaperMode, string> = {
   fixed: '固定选题',
   random: '随机组卷',
+}
+
+/** M3.2 试卷用途：练习 / 作业 / 考试。 */
+export const PAPER_KIND_META: Record<PaperKind, { label: string; tone: TagTone }> = {
+  practice: { label: '练习', tone: 'primary' },
+  homework: { label: '作业', tone: 'accent' },
+  exam: { label: '考试', tone: 'warning' },
 }
 
 export const BLANK_MODE_META: Record<

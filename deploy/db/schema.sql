@@ -40,6 +40,24 @@ CREATE TABLE IF NOT EXISTS `class` (
   CONSTRAINT `fk_class_teacher` FOREIGN KEY (`teacher_id`) REFERENCES `teacher` (`id`) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='班级';
 
+-- M3.3 班级 QQ 机器人配置
+CREATE TABLE IF NOT EXISTS `class_bot_config` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `class_id` BIGINT UNSIGNED NOT NULL,
+  `app_id` VARCHAR(64) NOT NULL,
+  `app_secret_cipher` VARBINARY(512) NOT NULL,
+  `callback_url` VARCHAR(255) DEFAULT NULL,
+  `enabled` TINYINT NOT NULL DEFAULT 0,
+  `last_check_at` DATETIME DEFAULT NULL,
+  `last_check_status` VARCHAR(16) NOT NULL DEFAULT 'never',
+  `created_by` BIGINT UNSIGNED NOT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_bot_class` (`class_id`),
+  CONSTRAINT `fk_bot_class` FOREIGN KEY (`class_id`) REFERENCES `class` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='班级 QQ 机器人配置';
+
 -- 5.4 class_invite
 CREATE TABLE IF NOT EXISTS `class_invite` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -69,6 +87,8 @@ CREATE TABLE IF NOT EXISTS `student` (
   `level` TINYINT UNSIGNED NOT NULL DEFAULT 1,
   `status` TINYINT NOT NULL DEFAULT 1 COMMENT '1 正常 / 0 禁用',
   `last_login_at` DATETIME DEFAULT NULL,
+  `streak_days` SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  `last_login_date` DATE DEFAULT NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
@@ -76,6 +96,46 @@ CREATE TABLE IF NOT EXISTS `student` (
   KEY `idx_student_class` (`class_id`),
   CONSTRAINT `fk_student_class` FOREIGN KEY (`class_id`) REFERENCES `class` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='学生';
+
+-- M3.2 学生每日经验
+CREATE TABLE IF NOT EXISTS `student_daily_xp` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `student_id` BIGINT UNSIGNED NOT NULL,
+  `stat_date` DATE NOT NULL,
+  `login_xp` INT NOT NULL DEFAULT 0,
+  `practice_xp` INT NOT NULL DEFAULT 0,
+  `streak_xp` INT NOT NULL DEFAULT 0,
+  `total_xp` INT NOT NULL DEFAULT 0,
+  `login_awarded` TINYINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_daily_student_date` (`student_id`, `stat_date`),
+  CONSTRAINT `fk_daily_student` FOREIGN KEY (`student_id`) REFERENCES `student` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='学生每日经验';
+
+-- M3.2 经验流水
+CREATE TABLE IF NOT EXISTS `xp_ledger` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `student_id` BIGINT UNSIGNED NOT NULL,
+  `source` VARCHAR(16) NOT NULL,
+  `ref_type` VARCHAR(16) NOT NULL,
+  `ref_id` BIGINT UNSIGNED NOT NULL,
+  `xp` INT NOT NULL DEFAULT 0,
+  `note` VARCHAR(100) DEFAULT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_ledger_student_source_ref` (`student_id`, `source`, `ref_id`),
+  KEY `idx_ledger_student_created` (`student_id`, `created_at`),
+  CONSTRAINT `fk_ledger_student` FOREIGN KEY (`student_id`) REFERENCES `student` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='经验流水';
+
+-- M3.2 班级经验开关
+CREATE TABLE IF NOT EXISTS `class_xp_switch` (
+  `class_id` BIGINT UNSIGNED NOT NULL,
+  `code` VARCHAR(32) NOT NULL,
+  `enabled` TINYINT NOT NULL DEFAULT 1,
+  PRIMARY KEY (`class_id`, `code`),
+  CONSTRAINT `fk_xp_switch_class` FOREIGN KEY (`class_id`) REFERENCES `class` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='班级经验开关';
 
 -- 5.6 qq_binding：两个生成列实现条件唯一（status=0 时为 NULL）
 -- 契约要求 STORED；MySQL 8.0 不允许 STORED 生成列引用被外键约束的列
@@ -266,6 +326,7 @@ CREATE TABLE IF NOT EXISTS `paper` (
   `class_id` BIGINT UNSIGNED NOT NULL,
   `title` VARCHAR(200) NOT NULL,
   `mode` VARCHAR(16) NOT NULL,
+  `kind` VARCHAR(16) NOT NULL DEFAULT 'practice',
   `blank_mode` VARCHAR(8) NOT NULL DEFAULT 'smart',
   `duration_minutes` INT NOT NULL DEFAULT 0,
   `shuffle` TINYINT NOT NULL DEFAULT 0,

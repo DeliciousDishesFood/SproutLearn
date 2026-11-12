@@ -12,6 +12,7 @@ QQ_BIND_STUDENT = "qq:bind:student:{student_id}"
 QQ_BIND_ATTEMPT = "qq:bind:attempt:{openid}"
 PARSE_LOCK = "lock:parse:{doc_id}"
 QUESTION_IMPORT = "question:import:{token}"
+QUOTE_RANDOM = "quote:random:{type}"
 
 
 def session_key(jti: str) -> str:
@@ -60,3 +61,7 @@ def parse_lock_key(doc_id: int) -> str:
 
 def question_import_key(token: str) -> str:
     return QUESTION_IMPORT.format(token=token)
+
+
+def quote_key(quote_type: str) -> str:
+    return QUOTE_RANDOM.format(type=quote_type)
