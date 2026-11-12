@@ -203,6 +203,14 @@ def test_exam_and_homework_submission_xp_idempotent(client, teacher_token, klass
         {"__paper_id": exam["id"], ids[0]: True},
     )
     assert _xp(client, student["token"]) == 50
+    with client.testing_session() as db:  # type: ignore[attr-defined]
+        daily = db.query(StudentDailyXp).filter(
+            StudentDailyXp.student_id == student["user"]["id"]
+        ).one()
+        assert daily.submission_xp == 50
+        assert daily.total_xp == (
+            daily.login_xp + daily.practice_xp + daily.streak_xp + daily.submission_xp
+        )
     repeat = client.post(f"/api/v1/attempts/{attempt_id}/submit", headers=auth(student["token"]))
     assert repeat.status_code == 200
     assert _xp(client, student["token"]) == 50
@@ -215,6 +223,11 @@ def test_exam_and_homework_submission_xp_idempotent(client, teacher_token, klass
         {"__paper_id": homework["id"], ids[0]: True},
     )
     assert _xp(client, student["token"]) == 70
+    with client.testing_session() as db:  # type: ignore[attr-defined]
+        daily = db.query(StudentDailyXp).filter(
+            StudentDailyXp.student_id == student["user"]["id"]
+        ).one()
+        assert daily.submission_xp == 70
 
 
 def test_practice_difficulty_cap_and_ledger(client, teacher_token, klass, student):
@@ -281,6 +294,7 @@ def test_student_and_teacher_workbench_and_cross_class(client, teacher_token, kl
     me = client.get("/api/v1/me/workbench", headers=auth(student["token"]))
     assert me.status_code == 200
     assert me.json()["data"]["today_xp"] >= 2
+    assert me.json()["data"]["today"]["cap"] == 200
     assert any(item["paper_id"] == paper["id"] for item in me.json()["data"]["recent"])
 
     teacher = client.get(f"/api/v1/classes/{klass['id']}/workbench", headers=auth(teacher_token))

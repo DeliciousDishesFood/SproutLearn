@@ -19,5 +19,6 @@ class StudentDailyXp(Base):
     login_xp = Column(Integer, nullable=False, default=0, server_default="0")
     practice_xp = Column(Integer, nullable=False, default=0, server_default="0")
     streak_xp = Column(Integer, nullable=False, default=0, server_default="0")
+    submission_xp = Column(Integer, nullable=False, default=0, server_default="0")
     total_xp = Column(Integer, nullable=False, default=0, server_default="0")
     login_awarded = Column(tinyint(), nullable=False, default=0, server_default="0")

@@ -105,6 +105,7 @@ CREATE TABLE IF NOT EXISTS `student_daily_xp` (
   `login_xp` INT NOT NULL DEFAULT 0,
   `practice_xp` INT NOT NULL DEFAULT 0,
   `streak_xp` INT NOT NULL DEFAULT 0,
+  `submission_xp` INT NOT NULL DEFAULT 0,
   `total_xp` INT NOT NULL DEFAULT 0,
   `login_awarded` TINYINT NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),

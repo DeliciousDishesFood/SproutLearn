@@ -14,6 +14,7 @@ from app.models.attempt import Attempt
 from app.models.paper import Paper
 from app.models.student import Student
 from app.models.student_daily_xp import StudentDailyXp
+from app.models.xp_limit_config import XpLimitConfig
 from app.services import growth_service
 from app.services.class_service import require_owned_class
 from app.utils.time import fmt_dt
@@ -52,6 +53,11 @@ def _daily(db: Session, student_id: int) -> StudentDailyXp | None:
         )
         .one_or_none()
     )
+
+
+def _practice_cap(db: Session) -> int:
+    item = db.get(XpLimitConfig, "practice_daily_cap")
+    return max(0, int(item.value or 0)) if item is not None else 0
 
 
 def student_workbench(db: Session, current: CurrentUser) -> dict[str, Any]:
@@ -124,7 +130,9 @@ def student_workbench(db: Session, current: CurrentUser) -> dict[str, Any]:
             "login_xp": int(daily.login_xp or 0) if daily else 0,
             "practice_xp": int(daily.practice_xp or 0) if daily else 0,
             "streak_xp": int(daily.streak_xp or 0) if daily else 0,
+            "submission_xp": int(daily.submission_xp or 0) if daily else 0,
             "total_xp": int(daily.total_xp or 0) if daily else 0,
+            "cap": _practice_cap(db),
         },
         "pending": pending,
         "pending_papers": pending,
@@ -178,6 +186,15 @@ def teacher_workbench(
         )
         .scalar()
     )
+    average_score_rate = (
+        db.query(func.avg(Attempt.total_score / func.nullif(Attempt.full_score, 0)))
+        .filter(
+            Attempt.class_id == class_id,
+            Attempt.status.in_(("submitted", "graded")),
+            Attempt.full_score > 0,
+        )
+        .scalar()
+    )
     papers = (
         db.query(Paper)
         .filter(Paper.class_id == class_id)
@@ -212,6 +229,7 @@ def teacher_workbench(
         "today_submissions": int(today_submissions),
         "active_students": int(active_students),
         "average_score": round(float(average_score or 0), 2),
+        "average_score_rate": round(float(average_score_rate or 0), 4),
         "recent_papers": [_paper_brief(paper) for paper in papers],
         "top_students": top,
         "top5": top,

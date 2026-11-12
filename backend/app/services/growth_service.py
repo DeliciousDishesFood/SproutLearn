@@ -101,6 +101,7 @@ def _daily(db: Session, student_id: int, *, lock: bool = False) -> StudentDailyX
             login_xp=0,
             practice_xp=0,
             streak_xp=0,
+            submission_xp=0,
             total_xp=0,
             login_awarded=0,
         )
@@ -231,6 +232,7 @@ def award_submission(
     if kind in ("exam", "homework") and _enabled(db, attempt.class_id, kind):
         xp = _base_xp(db, kind)
         if xp > 0 and not _ledger_exists(db, attempt.student_id, kind, attempt.id):
+            daily.submission_xp = int(daily.submission_xp or 0) + xp
             daily.total_xp = int(daily.total_xp or 0) + xp
             _add_ledger(
                 db,
