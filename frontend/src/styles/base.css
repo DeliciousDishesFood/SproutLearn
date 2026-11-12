@@ -24,8 +24,9 @@ body {
   color: var(--color-text);
   background-color: var(--color-bg);
   background-image:
-    radial-gradient(circle at 8% 2%, color-mix(in srgb, var(--color-primary) 7%, transparent) 0, transparent 34%),
-    radial-gradient(circle at 92% 10%, color-mix(in srgb, var(--color-accent) 8%, transparent) 0, transparent 28%);
+    radial-gradient(circle at 6% -6%, color-mix(in srgb, var(--color-primary) 9%, transparent) 0, transparent 32%),
+    radial-gradient(circle at 96% 4%, color-mix(in srgb, var(--color-accent) 7%, transparent) 0, transparent 26%),
+    linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 42%, transparent) 0, transparent 38%);
   background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
