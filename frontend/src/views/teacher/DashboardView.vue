@@ -72,10 +72,10 @@ const todayLabel = computed(() => {
   }
 })
 
-const averageScore = computed(() => {
-  const value = workbench.value?.average_score
+const averageScoreRate = computed(() => {
+  const value = workbench.value?.average_score_rate
   if (value === null || value === undefined || !Number.isFinite(value)) return '—'
-  return String(Math.round(value * 100) / 100)
+  return `${Math.round(value * 100)}%`
 })
 
 const statCards = computed(() => [
@@ -104,10 +104,10 @@ const statCards = computed(() => [
     tone: 'success',
   },
   {
-    key: 'average_score',
-    label: '班级平均分',
-    value: averageScore.value,
-    hint: '已提交作答的平均得分',
+    key: 'average_score_rate',
+    label: '平均得分率',
+    value: averageScoreRate.value,
+    hint: '已提交作答的平均得分率',
     icon: Gauge,
     tone: 'accent',
   },

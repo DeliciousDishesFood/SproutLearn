@@ -1,11 +1,14 @@
 <!-- 班级详情：邀请码面板 + 学生 / 文档 / 切片三个 Tab。 -->
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   AlertCircle,
   ArrowLeft,
   ArrowRight,
+  Bot,
+  CheckCircle2,
+  ExternalLink,
   FileText,
   Layers3,
   Plus,
@@ -16,6 +19,7 @@ import {
 } from 'lucide-vue-next'
 import AppButton from '@/components/base/AppButton.vue'
 import AppEmpty from '@/components/base/AppEmpty.vue'
+import AppInput from '@/components/base/AppInput.vue'
 import AppModal from '@/components/base/AppModal.vue'
 import AppPagination from '@/components/base/AppPagination.vue'
 import AppSelect from '@/components/base/AppSelect.vue'
@@ -26,10 +30,16 @@ import ChunkPreviewList from '@/components/business/ChunkPreviewList.vue'
 import InviteCodePanel from '@/components/business/InviteCodePanel.vue'
 import StudentTable from '@/components/business/StudentTable.vue'
 import { isApiError } from '@/api/client'
+import { botApi } from '@/api/bot'
 import { knowledgeApi } from '@/api/knowledge'
 import { useClassStore } from '@/stores/class'
 import { useUiStore } from '@/stores/ui'
-import type { KnowledgeChunk, KnowledgeDocListItem } from '@/api/types'
+import type {
+  BotConfig,
+  BotTestResult,
+  KnowledgeChunk,
+  KnowledgeDocListItem,
+} from '@/api/types'
 import type { DocStatusValue, TableColumn } from '@/types'
 import {
   DOC_STATUS_META,
@@ -77,6 +87,20 @@ const chunkPageSize = ref(PAGE_SIZE)
 const chunkLoading = ref(false)
 const chunkError = ref('')
 
+const botConfig = ref<BotConfig | null>(null)
+const botLoading = ref(false)
+const botLoadError = ref('')
+const botSaving = ref(false)
+const botTesting = ref(false)
+const botError = ref('')
+const botTest = ref<BotTestResult | null>(null)
+const botForm = reactive({
+  appId: '',
+  appSecret: '',
+  callbackUrl: '',
+  enabled: false,
+})
+
 const classId = computed(() => Number(route.params.id))
 const classDetail = computed(() => classStore.currentClass)
 const classError = computed(() => classStore.currentError)
@@ -122,6 +146,118 @@ function docMeta(status: number): { label: string; tone: 'neutral' | 'warning' |
   return DOC_STATUS_META[status as DocStatusValue] ?? DOC_STATUS_META[0]
 }
 
+const botStatus = computed<{ label: string; tone: 'neutral' | 'success' | 'danger' }>(() => {
+  if (!botConfig.value?.app_id) return { label: '未配置', tone: 'neutral' }
+  if (botConfig.value.last_check_status === 'ok') return { label: '连接正常', tone: 'success' }
+  if (botConfig.value.last_check_status === 'failed') return { label: '连接失败', tone: 'danger' }
+  return { label: '未测试', tone: 'neutral' }
+})
+
+const botSecretHint = computed(() =>
+  botConfig.value?.has_secret
+    ? `已保存，末 4 位 ${botConfig.value.secret_tail || '****'}；留空表示不修改`
+    : '首次保存必须填写 AppSecret，保存后不再回显',
+)
+
+const botLastCheck = computed(() => {
+  const config = botConfig.value
+  if (!config?.last_check_at) return ''
+  const status =
+    config.last_check_status === 'ok'
+      ? '连接正常'
+      : config.last_check_status === 'failed'
+        ? '连接失败'
+        : '未测试'
+  return `上次测试 ${formatDateTime(config.last_check_at)} · ${status}`
+})
+
+function resetBotState(): void {
+  botConfig.value = null
+  botLoadError.value = ''
+  botError.value = ''
+  botTest.value = null
+  botForm.appId = ''
+  botForm.appSecret = ''
+  botForm.callbackUrl = ''
+  botForm.enabled = false
+}
+
+async function loadBotConfig(): Promise<void> {
+  if (!Number.isFinite(classId.value) || classId.value <= 0) return
+  botLoading.value = true
+  botLoadError.value = ''
+  try {
+    const config = await botApi.get(classId.value)
+    botConfig.value = config
+    botForm.appId = config.app_id ?? ''
+    botForm.callbackUrl = config.callback_url ?? ''
+    botForm.enabled = config.enabled
+    botForm.appSecret = ''
+  } catch (err) {
+    botLoadError.value = isApiError(err) ? err.friendlyMessage : '机器人配置暂时无法加载'
+  } finally {
+    botLoading.value = false
+  }
+}
+
+async function saveBot(): Promise<void> {
+  if (botSaving.value) return
+  botError.value = ''
+  const appId = botForm.appId.trim()
+  if (!appId) {
+    botError.value = '请填写 AppID'
+    return
+  }
+  if (!botConfig.value?.has_secret && !botForm.appSecret.trim()) {
+    botError.value = '首次保存必须填写 AppSecret'
+    return
+  }
+  botSaving.value = true
+  try {
+    const config = await botApi.save(classId.value, {
+      app_id: appId,
+      app_secret: botForm.appSecret.trim() || undefined,
+      callback_url: botForm.callbackUrl.trim() || null,
+      enabled: botForm.enabled,
+    })
+    botConfig.value = config
+    botForm.appId = config.app_id ?? ''
+    botForm.callbackUrl = config.callback_url ?? ''
+    botForm.enabled = config.enabled
+    botForm.appSecret = ''
+    botTest.value = null
+    ui.success('机器人配置已保存')
+  } catch (err) {
+    botError.value = isApiError(err) ? err.friendlyMessage : '保存失败，请稍后重试'
+  } finally {
+    botSaving.value = false
+  }
+}
+
+async function testBot(): Promise<void> {
+  if (botTesting.value) return
+  botError.value = ''
+  botTest.value = null
+  if (!botConfig.value?.has_secret) {
+    botError.value = '请先保存机器人配置，再测试连接'
+    return
+  }
+  botTesting.value = true
+  try {
+    const result = await botApi.test(classId.value)
+    botTest.value = result
+    if (botConfig.value) {
+      botConfig.value.last_check_at = result.last_check_at
+      botConfig.value.last_check_status = result.last_check_status
+    }
+    if (result.ok) ui.success('连接成功')
+  } catch (err) {
+    botError.value = isApiError(err) ? err.friendlyMessage : '测试连接失败，请稍后重试'
+  } finally {
+    botTesting.value = false
+  }
+}
+
 function resetTabState(): void {
   studentsLoaded.value = false
   documentsLoaded.value = false
@@ -142,6 +278,7 @@ function resetTabState(): void {
   chunkTotal.value = 0
   chunkPage.value = 1
   chunkError.value = ''
+  resetBotState()
 }
 
 async function loadClass(): Promise<void> {
@@ -344,6 +481,7 @@ async function bootstrap(): Promise<void> {
   booting.value = false
   if (classDetail.value) {
     await loadStudents(1, studentPageSize.value, '')
+    await loadBotConfig()
   }
 }
 
@@ -618,6 +756,182 @@ onMounted(bootstrap)
           </section>
         </aside>
       </div>
+
+      <section class="bot-section" aria-labelledby="bot-title">
+        <header class="bot-head">
+          <div class="bot-head__copy">
+            <span class="bot-head__icon" aria-hidden="true">
+              <Bot :size="19" :stroke-width="1.8" />
+            </span>
+            <div>
+              <h3 id="bot-title" class="section-title">QQ 机器人</h3>
+              <p class="section-note">
+                保存 AppID / Secret 并做一次凭证连通性测试。机器人需在 QQ 开放平台申请，由外部 AstrBot 运行。
+              </p>
+            </div>
+          </div>
+          <AppTag :tone="botStatus.tone" dot>{{ botStatus.label }}</AppTag>
+        </header>
+
+        <div class="bot-layout">
+          <form class="panel bot-form" @submit.prevent="saveBot">
+            <div v-if="botLoadError" class="bot-load-error">
+              <p class="form-error" role="alert">
+                <AlertCircle :size="16" :stroke-width="1.9" aria-hidden="true" />
+                <span>{{ botLoadError }}</span>
+              </p>
+              <AppButton variant="secondary" size="sm" type="button" @click="loadBotConfig">
+                <RefreshCw :size="14" :stroke-width="1.8" />
+                重新加载
+              </AppButton>
+            </div>
+
+            <template v-else>
+              <p v-if="!botLoading && !botConfig?.app_id" class="bot-empty">
+                尚未保存机器人配置。填写下方信息并保存后，这里会显示最近一次测试状态。
+              </p>
+
+              <AppInput
+                v-model="botForm.appId"
+                label="AppID"
+                placeholder="QQ 开放平台应用详情中的 AppID"
+                :disabled="botLoading || botSaving"
+                :maxlength="64"
+              />
+              <AppInput
+                v-model="botForm.appSecret"
+                type="password"
+                label="AppSecret"
+                :placeholder="botConfig?.has_secret ? '已保存，留空不修改' : '填写 AppSecret'"
+                :hint="botSecretHint"
+                :disabled="botLoading || botSaving"
+                :maxlength="512"
+              />
+              <AppInput
+                v-model="botForm.callbackUrl"
+                label="回调地址"
+                placeholder="https://your-server.example.com/qq/callback"
+                :disabled="botLoading || botSaving"
+                :maxlength="255"
+              />
+
+              <div class="bot-switch-row">
+                <div>
+                  <p class="bot-switch-row__label">启用机器人</p>
+                  <p class="bot-switch-row__hint">关闭后，学生绑定仍沿用原有鉴权方式。</p>
+                </div>
+                <button
+                  type="button"
+                  class="bot-switch"
+                  :class="{ 'bot-switch--on': botForm.enabled }"
+                  role="switch"
+                  :aria-checked="botForm.enabled"
+                  aria-label="启用机器人"
+                  :disabled="botLoading || botSaving"
+                  @click="botForm.enabled = !botForm.enabled"
+                >
+                  <span class="bot-switch__thumb" />
+                </button>
+              </div>
+
+              <p v-if="botLastCheck" class="bot-last-check">{{ botLastCheck }}</p>
+
+              <p v-if="botError" class="form-error" role="alert">
+                <AlertCircle :size="16" :stroke-width="1.9" aria-hidden="true" />
+                <span>{{ botError }}</span>
+              </p>
+
+              <div class="bot-actions">
+                <AppButton type="submit" :loading="botSaving" :disabled="botLoading">
+                  保存配置
+                </AppButton>
+                <AppButton
+                  variant="secondary"
+                  type="button"
+                  :loading="botTesting"
+                  :disabled="botLoading || botSaving || !botConfig?.has_secret"
+                  @click="testBot"
+                >
+                  测试连接
+                </AppButton>
+                <span v-if="!botConfig?.has_secret" class="bot-actions__hint">保存后可测试</span>
+              </div>
+
+              <div
+                v-if="botTest"
+                class="bot-result"
+                :class="botTest.ok ? 'bot-result--ok' : 'bot-result--failed'"
+                role="status"
+              >
+                <p class="bot-result__title">
+                  <CheckCircle2
+                    v-if="botTest.ok"
+                    :size="17"
+                    :stroke-width="1.9"
+                    aria-hidden="true"
+                  />
+                  <AlertCircle v-else :size="17" :stroke-width="1.9" aria-hidden="true" />
+                  {{ botTest.ok ? '连接成功' : '连接失败' }}
+                </p>
+                <p
+                  v-if="botTest.message && botTest.message !== (botTest.ok ? '连接成功' : '连接失败')"
+                  class="bot-result__message"
+                >
+                  {{ botTest.message }}
+                </p>
+                <p class="bot-result__meta">
+                  <span v-if="botTest.ok && botTest.expires_in !== null">
+                    access_token 有效期 {{ botTest.expires_in }} 秒
+                  </span>
+                  <span v-if="botTest.last_check_at">
+                    测试时间 {{ formatDateTime(botTest.last_check_at) }}
+                  </span>
+                </p>
+              </div>
+            </template>
+          </form>
+
+          <aside class="bot-steps">
+            <p class="eyebrow">SETUP GUIDE</p>
+            <h4 class="bot-steps__title">四步接入</h4>
+            <ol class="bot-steps__list">
+              <li>
+                <span class="bot-steps__index">1</span>
+                <div>
+                  <strong>去开放平台建应用</strong>
+                  <p>在 QQ 开放平台创建机器人应用，获取 AppID 与 AppSecret。</p>
+                </div>
+              </li>
+              <li>
+                <span class="bot-steps__index">2</span>
+                <div>
+                  <strong>填 AppID / Secret</strong>
+                  <p>AppSecret 保存后不再回显，留空表示不修改。</p>
+                </div>
+              </li>
+              <li>
+                <span class="bot-steps__index">3</span>
+                <div>
+                  <strong>配回调地址</strong>
+                  <p>填写外部机器人服务接收事件的回调地址。</p>
+                </div>
+              </li>
+              <li>
+                <span class="bot-steps__index">4</span>
+                <div>
+                  <strong>启用并测试</strong>
+                  <p>保存后点「测试连接」，确认凭证能换到 access_token。</p>
+                </div>
+              </li>
+            </ol>
+            <router-link class="bot-steps__link" to="/docs/qq-bot-setup">
+              查看完整配置文档
+              <ExternalLink :size="14" :stroke-width="1.8" />
+            </router-link>
+            <p class="bot-steps__note">平台不代申请机器人，也不托管机器人进程。</p>
+          </aside>
+        </div>
+      </section>
     </template>
 
     <AppModal
@@ -925,6 +1239,271 @@ onMounted(bootstrap)
 
 .delete-open-error {
   margin-top: var(--sp-3);
+}
+
+.bot-section {
+  margin-top: var(--sp-5);
+  padding-top: var(--sp-5);
+  border-top: 1px solid var(--color-border);
+}
+
+.bot-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  margin-bottom: var(--sp-4);
+}
+
+.bot-head__copy {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+.bot-head__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: var(--radius-sm);
+  color: var(--color-accent);
+  background: var(--color-primary);
+}
+
+.bot-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: var(--sp-4);
+  align-items: start;
+}
+
+.bot-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  padding: var(--sp-5);
+}
+
+.bot-load-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.bot-empty {
+  padding: var(--sp-3);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-alt);
+  color: var(--color-text-muted);
+  font-size: var(--fs-xs);
+  line-height: 1.6;
+}
+
+.bot-switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  padding: var(--sp-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-alt);
+}
+
+.bot-switch-row__label {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+.bot-switch-row__hint {
+  margin-top: 2px;
+  color: var(--color-text-muted);
+  font-size: var(--fs-xs);
+  line-height: 1.5;
+}
+
+.bot-switch {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  flex-shrink: 0;
+  padding: 0;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 999px;
+  background: var(--color-surface);
+  transition: background-color 160ms ease-out, border-color 160ms ease-out;
+}
+
+.bot-switch__thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--color-text-muted);
+  transition: transform 160ms ease-out, background-color 160ms ease-out;
+}
+
+.bot-switch--on {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+}
+
+.bot-switch--on .bot-switch__thumb {
+  background: var(--color-text-inverse);
+  transform: translateX(20px);
+}
+
+.bot-switch:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.bot-last-check {
+  color: var(--color-text-muted);
+  font-size: var(--fs-xs);
+}
+
+.bot-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.bot-actions__hint {
+  color: var(--color-text-muted);
+  font-size: var(--fs-xs);
+}
+
+.bot-result {
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-alt);
+}
+
+.bot-result--ok {
+  border-color: color-mix(in srgb, var(--color-success) 34%, var(--color-border));
+  background: color-mix(in srgb, var(--color-success) 8%, var(--color-surface));
+}
+
+.bot-result--failed {
+  border-color: color-mix(in srgb, var(--color-danger) 32%, var(--color-border));
+  background: color-mix(in srgb, var(--color-danger) 7%, var(--color-surface));
+}
+
+.bot-result__title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+.bot-result--ok .bot-result__title {
+  color: var(--color-success);
+}
+
+.bot-result--failed .bot-result__title {
+  color: var(--color-danger);
+}
+
+.bot-result__message {
+  margin-top: var(--sp-2);
+  font-size: var(--fs-sm);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.bot-result__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  margin-top: var(--sp-1);
+  color: var(--color-text-muted);
+  font-size: var(--fs-xs);
+}
+
+.bot-steps {
+  padding: var(--sp-4);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-alt);
+}
+
+.bot-steps__title {
+  margin: 2px 0 var(--sp-3);
+  font-size: var(--fs-base);
+}
+
+.bot-steps__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.bot-steps__list li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+}
+
+.bot-steps__index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  color: var(--color-primary);
+  background: var(--color-primary-soft);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.bot-steps__list strong {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+.bot-steps__list p {
+  margin-top: 2px;
+  color: var(--color-text-muted);
+  font-size: var(--fs-xs);
+  line-height: 1.55;
+}
+
+.bot-steps__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: var(--sp-4);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+.bot-steps__note {
+  margin-top: var(--sp-2);
+  color: var(--color-text-muted);
+  font-size: var(--fs-xs);
+  line-height: 1.6;
+}
+
+@media (max-width: 1100px) {
+  .bot-layout {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 1100px) {

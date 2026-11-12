@@ -177,6 +177,25 @@ export const routes: RouteRecordRaw[] = [
     ],
   },
   {
+    path: '/docs',
+    component: () => import('@/layouts/DocsLayout.vue'),
+    meta: { requiresAuth: true, roles: ['teacher', 'student'] },
+    children: [
+      {
+        path: '',
+        name: 'docs',
+        component: () => import('@/views/docs/DocsView.vue'),
+        meta: { title: '文档中心', requiresAuth: true, roles: ['teacher', 'student'] },
+      },
+      {
+        path: ':slug',
+        name: 'docs-detail',
+        component: () => import('@/views/docs/DocsView.vue'),
+        meta: { title: '文档中心', requiresAuth: true, roles: ['teacher', 'student'] },
+      },
+    ],
+  },
+  {
     path: '/:pathMatch(.*)*',
     name: 'not-found',
     redirect: () => homeForCurrentUser(),

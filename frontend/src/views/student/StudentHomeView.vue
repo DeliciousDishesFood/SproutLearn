@@ -85,9 +85,7 @@ const progressCaption = computed(() => {
 })
 
 const streakDays = computed(() => workbench.value?.streak_days ?? 0)
-const todayXp = computed(
-  () => workbench.value?.today_xp ?? workbench.value?.today?.total_xp ?? 0,
-)
+const todayXp = computed(() => workbench.value?.today?.total_xp ?? 0)
 const todayCap = computed(() => workbench.value?.today?.cap ?? 0)
 
 const pendingPapers = computed(() =>
@@ -210,9 +208,7 @@ onMounted(loadWorkbench)
           </div>
           <div>
             <dt><Sparkles :size="14" :stroke-width="1.8" aria-hidden="true" />今日经验</dt>
-            <dd class="tabular">
-              {{ todayXp }}<template v-if="todayCap > 0"> / {{ todayCap }}</template>
-            </dd>
+            <dd class="tabular">{{ todayXp }} / {{ todayCap }}</dd>
           </div>
           <div>
             <dt><Target :size="14" :stroke-width="1.8" aria-hidden="true" />待做练习</dt>

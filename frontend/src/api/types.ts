@@ -631,9 +631,10 @@ export interface StudentTodayXp {
   login_xp: number
   practice_xp: number
   streak_xp: number
+  submission_xp: number
   total_xp: number
-  /** 后端未下发日封顶时前端不显示 /cap。 */
-  cap?: number
+  /** 练习经验日封顶，由后端读 xp_config。 */
+  cap: number
 }
 
 export interface StudentPendingPaper {
@@ -713,6 +714,8 @@ export interface TeacherWorkbench {
   today_submissions: number
   active_students: number
   average_score: number
+  /** 平均得分率 0~1，教师工作台第四卡使用。 */
+  average_score_rate: number
   recent_papers: PaperItem[]
   top_students: ClassRankItem[]
   /** 后端同时下发 top_students / top5 两个同值别名。 */
@@ -725,5 +728,47 @@ export interface QuoteResult {
   text: string
   from: string
   source: 'shiora' | 'hitokoto' | 'local' | string
+}
+
+// ---------------- M3.3 QQ 机器人 / 文档中心 ----------------
+
+/** 机器人配置：Secret 永不下发明文，只给 has_secret 与末 4 位。 */
+export interface BotConfig {
+  class_id: number
+  app_id: string | null
+  callback_url: string | null
+  enabled: boolean
+  last_check_at: string | null
+  last_check_status: 'ok' | 'failed' | 'never' | string
+  has_secret: boolean
+  secret_tail: string | null
+}
+
+export interface BotConfigPayload {
+  app_id: string
+  /** 留空表示不修改已保存的 Secret。 */
+  app_secret?: string
+  callback_url?: string | null
+  enabled: boolean
+}
+
+export interface BotTestResult {
+  ok: boolean
+  message: string
+  expires_in: number | null
+  last_check_at: string | null
+  last_check_status: string
+}
+
+export interface DocListItem {
+  slug: string
+  title: string
+  summary: string
+  updated_at: string | null
+}
+
+export interface DocDetail extends DocListItem {
+  content: string
+  markdown: string
 }
 

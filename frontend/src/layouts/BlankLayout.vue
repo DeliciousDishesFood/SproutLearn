@@ -42,6 +42,9 @@ async function handleLogout(): Promise<void> {
           <router-link to="/student/profile" class="student-nav__link" active-class="student-nav__link--active">
             我的
           </router-link>
+          <router-link to="/docs" class="student-nav__link" active-class="student-nav__link--active">
+            文档
+          </router-link>
         </nav>
         <span class="student-user">
           <span class="student-avatar">{{ initial }}</span>
