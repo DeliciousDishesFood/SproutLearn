@@ -42,10 +42,13 @@ class QuestionRepository(BaseRepository[Question]):
         keyword: str | None,
         offset: int,
         limit: int,
+        bank_id: int | None = None,
     ) -> list[Question]:
         query = self.db.query(Question).filter(
             Question.class_id == class_id, Question.deleted_at.is_(None)
         )
+        if bank_id is not None:
+            query = query.filter(Question.bank_id == bank_id)
         if type_:
             query = query.filter(Question.type == type_)
         if tag:
@@ -68,10 +71,13 @@ class QuestionRepository(BaseRepository[Question]):
         difficulty: str | None,
         status: str | None,
         keyword: str | None,
+        bank_id: int | None = None,
     ) -> int:
         query = self.db.query(Question).filter(
             Question.class_id == class_id, Question.deleted_at.is_(None)
         )
+        if bank_id is not None:
+            query = query.filter(Question.bank_id == bank_id)
         if type_:
             query = query.filter(Question.type == type_)
         if tag:
@@ -104,15 +110,35 @@ class QuestionRepository(BaseRepository[Question]):
         *,
         tag: str | None,
         difficulty: str | None,
+        bank_ids: list[int] | None = None,
     ) -> list[Question]:
         query = self.db.query(Question).filter(
             Question.class_id == class_id, Question.deleted_at.is_(None)
         )
+        if bank_ids:
+            query = query.filter(Question.bank_id.in_(bank_ids))
         if tag:
             query = query.filter(Question.knowledge_tag == tag)
         if difficulty:
             query = query.filter(Question.difficulty == difficulty)
         return query.order_by(Question.id.asc()).all()
+
+    def list_by_banks(self, class_id: int, bank_ids: list[int]) -> list[Question]:
+        if not bank_ids:
+            return []
+        order = {bank_id: index for index, bank_id in enumerate(bank_ids)}
+        questions = (
+            self.db.query(Question)
+            .filter(
+                Question.class_id == class_id,
+                Question.bank_id.in_(bank_ids),
+                Question.deleted_at.is_(None),
+            )
+            .order_by(Question.id.asc())
+            .all()
+        )
+        questions.sort(key=lambda question: (order.get(question.bank_id, 0), question.id))
+        return questions
 
     def published_reference(self, question_id: int, *, include_closed: bool = True) -> bool:
         statuses = ("published", "closed") if include_closed else ("published",)

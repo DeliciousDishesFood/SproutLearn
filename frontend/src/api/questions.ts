@@ -1,7 +1,10 @@
-// 题库接口（M2-C/M2.5）：导入预览/提交、筛选列表、编辑、软删除、讲评（含流式）。
+// 题库接口（M2-C/M2.5/M3.1）：导入预览/提交、题库 CRUD、筛选列表、编辑、软删除、讲评（含流式）。
 import { api, ApiError } from '@/api/client'
 import type {
   Paged,
+  QuestionBank,
+  QuestionBankCreatePayload,
+  QuestionBankUpdatePayload,
   QuestionExplainResult,
   QuestionImportCommit,
   QuestionImportCommitPayload,
@@ -113,9 +116,10 @@ async function readExplainStream(
 }
 
 export const questionsApi = {
-  previewImport(classId: number, file: File): Promise<QuestionImportPreview> {
+  previewImport(classId: number, file: File, bankId?: number | null): Promise<QuestionImportPreview> {
     const formData = new FormData()
     formData.append('file', file, file.name)
+    if (bankId !== undefined && bankId !== null) formData.append('bank_id', String(bankId))
     return api.post<QuestionImportPreview>(
       `/classes/${classId}/questions/import/preview`,
       formData,
@@ -137,6 +141,7 @@ export const questionsApi = {
     const tag = query.knowledge_tag?.trim() || undefined
     return api.get<Paged<QuestionItem>>(`/classes/${classId}/questions`, {
       params: {
+        bank_id: query.bank_id,
         type: query.type,
         // 后端实际读取 tag；同时带 knowledge_tag，保持与派工包参数名一致。
         tag,
@@ -177,5 +182,24 @@ export const questionsApi = {
       promise: readExplainStream(questionId, studentAnswer, handlers, controller.signal),
       abort: () => controller.abort(),
     }
+  },
+}
+
+/** M3.1 题库分类：班级下题库的列表、新建、改名/描述、软删。 */
+export const banksApi = {
+  list(classId: number): Promise<QuestionBank[]> {
+    return api.get<QuestionBank[]>(`/classes/${classId}/banks`)
+  },
+
+  create(classId: number, payload: QuestionBankCreatePayload): Promise<QuestionBank> {
+    return api.post<QuestionBank>(`/classes/${classId}/banks`, payload, { skipGlobalError: true })
+  },
+
+  update(bankId: number, payload: QuestionBankUpdatePayload): Promise<QuestionBank> {
+    return api.patch<QuestionBank>(`/banks/${bankId}`, payload, { skipGlobalError: true })
+  },
+
+  remove(bankId: number): Promise<null> {
+    return api.delete<null>(`/banks/${bankId}`, { skipGlobalError: true })
   },
 }

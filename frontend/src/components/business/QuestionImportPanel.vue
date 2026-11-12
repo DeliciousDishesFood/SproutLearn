@@ -19,16 +19,26 @@ import { questionsApi } from '@/api/questions'
 import { QUESTION_IMPORT_ACCEPT, QUESTION_IMPORT_MAX_MB } from '@/utils/constants'
 import { formatFileSize } from '@/utils/format'
 import type {
+  QuestionBank,
   QuestionImportError,
   QuestionImportPreview,
   QuestionType,
 } from '@/api/types'
 import type { SelectOption, TableColumn } from '@/types'
 
-const props = defineProps<{
-  modelValue: boolean
-  classId: number | null
-}>()
+const props = withDefaults(
+  defineProps<{
+    modelValue: boolean
+    classId: number | null
+    /** M3.1：默认导入到当前题库；为空时后端自动建「导入题库-日期」。 */
+    bankId?: number | null
+    banks?: QuestionBank[]
+  }>(),
+  {
+    bankId: null,
+    banks: () => [],
+  },
+)
 
 const emit = defineEmits<{
   (event: 'update:modelValue', value: boolean): void
@@ -92,6 +102,19 @@ const error = ref('')
 const columnMap = ref<Record<string, string>>({})
 const editableRows = ref<EditableRow[]>([])
 const confirming = ref(false)
+const targetBankId = ref<number | null>(props.bankId)
+
+const targetBankOptions = computed<SelectOption[]>(() => [
+  { value: '', label: '自动创建「导入题库-日期」' },
+  ...props.banks.map((bank) => ({
+    value: String(bank.id),
+    label: `${bank.name}（${bank.question_count} 题）`,
+  })),
+])
+const targetBankName = computed(() => {
+  if (targetBankId.value === null) return ''
+  return props.banks.find((bank) => bank.id === targetBankId.value)?.name ?? ''
+})
 
 const errorColumns: TableColumn[] = [
   { key: 'row', title: '行号', width: '76px' },
@@ -100,11 +123,11 @@ const errorColumns: TableColumn[] = [
 ]
 
 const rowColumns: TableColumn[] = [
-  { key: 'index', title: '行号', width: '68px' },
-  { key: 'type', title: '题型', width: '110px' },
+  { key: 'index', title: '行号', width: '56px' },
+  { key: 'type', title: '题型', width: '104px' },
   { key: 'stem', title: '题干' },
-  { key: 'answer', title: '答案', width: '180px' },
-  { key: 'state', title: '状态', width: '150px' },
+  { key: 'answer', title: '答案', width: '200px' },
+  { key: 'state', title: '状态', width: '200px' },
   { key: 'actions', title: '操作', width: '72px' },
 ]
 
@@ -136,13 +159,15 @@ function reset(): void {
   columnMap.value = {}
   editableRows.value = []
   confirming.value = false
+  targetBankId.value = props.bankId
   if (inputRef.value) inputRef.value.value = ''
 }
 
 watch(
   () => props.modelValue,
   (open) => {
-    if (!open) reset()
+    if (open) targetBankId.value = props.bankId
+    else reset()
   },
 )
 
@@ -303,6 +328,10 @@ function restoreRow(row: EditableRow): void {
   confirming.value = false
 }
 
+function handleTargetBank(value: string): void {
+  targetBankId.value = value ? Number(value) : null
+}
+
 async function handleFile(next: File | null): Promise<void> {
   if (!next) return
   const ext = extensionOf(next.name)
@@ -328,7 +357,7 @@ async function handleFile(next: File | null): Promise<void> {
   confirming.value = false
   previewing.value = true
   try {
-    const data = await questionsApi.previewImport(props.classId, next)
+    const data = await questionsApi.previewImport(props.classId, next, targetBankId.value)
     preview.value = data
     columnMap.value = buildColumnMap(data)
     editableRows.value = buildRows(data)
@@ -373,6 +402,7 @@ async function commit(): Promise<void> {
     const result = await questionsApi.commitImport(props.classId, {
       token: preview.value.token,
       rows: hasRowModel.value ? importableRows.value.map(rowPayload) : undefined,
+      bank_id: targetBankId.value,
     })
     inserted.value = result.inserted
     confirming.value = false
@@ -451,6 +481,22 @@ function downloadTemplate(): void {
         :accept="QUESTION_IMPORT_ACCEPT"
         @change="onInputChange"
       />
+
+      <div class="import-target">
+        <div class="import-target__text">
+          <span class="muted text-xs">导入到</span>
+          <strong>{{ targetBankId === null ? '自动创建「导入题库-日期」' : targetBankName }}</strong>
+        </div>
+        <div class="import-target__switch">
+          <span class="muted text-xs">切换</span>
+          <AppSelect
+            :model-value="targetBankId === null ? '' : String(targetBankId)"
+            :options="targetBankOptions"
+            :disabled="previewing || committing"
+            @update:model-value="handleTargetBank"
+          />
+        </div>
+      </div>
 
       <template v-if="inserted !== null">
         <section class="import-result" aria-live="polite">
@@ -536,7 +582,7 @@ function downloadTemplate(): void {
             <h3 class="import-rows__title">逐行校验</h3>
             <span class="muted text-xs">可改题型与答案、删除整行；标红行不会被导入</span>
           </header>
-          <AppTable :columns="rowColumns" :rows="editableRows" row-key="key" min-width="760px">
+          <AppTable :columns="rowColumns" :rows="editableRows" row-key="key" min-width="880px">
             <template #cell-index="{ row }">
               <span class="mono tabular">{{ row.index }}</span>
             </template>
@@ -714,6 +760,42 @@ function downloadTemplate(): void {
   display: none;
 }
 
+.import-target {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-alt);
+}
+
+.import-target__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.import-target__text strong {
+  font-size: var(--fs-sm);
+  overflow-wrap: anywhere;
+}
+
+.import-target__switch {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 280px;
+  max-width: 100%;
+}
+
+.import-target__switch :deep(.app-select) {
+  flex: 1;
+}
+
 .import-drop {
   display: flex;
   flex-direction: column;
@@ -857,6 +939,56 @@ function downloadTemplate(): void {
   gap: var(--sp-2);
 }
 
+.import-rows :deep(.app-table__scroll) {
+  max-height: min(52vh, 460px);
+  overflow: auto;
+}
+
+.import-rows :deep(table) {
+  table-layout: fixed;
+}
+
+.import-rows :deep(tbody td) {
+  height: 56px;
+  vertical-align: middle;
+}
+
+.import-rows :deep(thead th) {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--color-surface);
+}
+
+.import-rows :deep(thead th:first-child),
+.import-rows :deep(tbody td:first-child) {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--color-surface);
+}
+
+.import-rows :deep(thead th:first-child) {
+  z-index: 3;
+}
+
+.import-rows :deep(tbody tr.app-table__row--striped td:first-child) {
+  background: var(--color-surface-alt);
+}
+
+.import-rows :deep(tbody tr:has(.import-cell__state--error)) td {
+  background: color-mix(in srgb, var(--color-danger) 5%, var(--color-surface));
+}
+
+.import-rows :deep(tbody tr:has(.import-cell__state--error)) td:first-child {
+  background: color-mix(in srgb, var(--color-danger) 5%, var(--color-surface));
+  box-shadow: inset 3px 0 0 var(--color-danger);
+}
+
+.import-rows :deep(tbody tr:has(.import-cell__state--error):hover td) {
+  background: color-mix(in srgb, var(--color-danger) 8%, var(--color-surface));
+}
+
 .import-mapping__head,
 .import-rows__head {
   display: flex;
@@ -918,9 +1050,9 @@ function downloadTemplate(): void {
 .import-cell__stem {
   display: block;
   font-size: var(--fs-sm);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.5;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .import-cell--muted {
@@ -929,8 +1061,12 @@ function downloadTemplate(): void {
 }
 
 .import-cell__state {
+  display: block;
   color: var(--color-text-muted);
   font-size: var(--fs-xs);
+  line-height: 1.5;
+  white-space: normal;
+  word-break: break-word;
 }
 
 .import-cell__state--error {

@@ -220,10 +220,27 @@ CREATE TABLE IF NOT EXISTS `grading_result` (
   CONSTRAINT `fk_grading_result_student` FOREIGN KEY (`student_id`) REFERENCES `student` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='判分结果（M2A）';
 
--- M2B 6.1 question
+-- M3.1 question_bank
+CREATE TABLE IF NOT EXISTS `question_bank` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `class_id` BIGINT UNSIGNED NOT NULL,
+  `name` VARCHAR(60) NOT NULL,
+  `description` VARCHAR(200) DEFAULT NULL,
+  `created_by` BIGINT UNSIGNED NOT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `deleted_at` DATETIME DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_bank_class_name` (`class_id`, `name`),
+  KEY `idx_bank_class_deleted` (`class_id`, `deleted_at`),
+  CONSTRAINT `fk_bank_class` FOREIGN KEY (`class_id`) REFERENCES `class` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='题库分类';
+
+-- M2B 6.1 question（M3.1 增加 bank_id）
 CREATE TABLE IF NOT EXISTS `question` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   `class_id` BIGINT UNSIGNED NOT NULL,
+  `bank_id` BIGINT UNSIGNED NOT NULL,
   `type` VARCHAR(16) NOT NULL,
   `stem` TEXT NOT NULL,
   `options_json` JSON DEFAULT NULL,
@@ -238,7 +255,9 @@ CREATE TABLE IF NOT EXISTS `question` (
   `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_question_class_status_deleted` (`class_id`, `status`, `deleted_at`),
-  KEY `idx_question_class_tag` (`class_id`, `knowledge_tag`)
+  KEY `idx_question_class_tag` (`class_id`, `knowledge_tag`),
+  KEY `idx_question_bank_status_deleted` (`bank_id`, `status`, `deleted_at`),
+  CONSTRAINT `fk_question_bank` FOREIGN KEY (`bank_id`) REFERENCES `question_bank` (`id`) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='题库题目';
 
 -- M2B 6.2 paper

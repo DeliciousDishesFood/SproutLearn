@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, File, Query, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
@@ -20,10 +20,11 @@ _settings = get_settings()
 async def preview_import(
     class_id: int,
     file: UploadFile = File(...),
+    bank_id: int | None = Form(default=None),
     current: CurrentUser = Depends(require_teacher),
     db: Session = Depends(get_db),
 ):
-    """API-M2-01 上传 JSON/XLSX 预览，不落库。"""
+    """API-M2-01 上传 JSON/XLSX/XLS/CSV 预览，不落库。"""
     content = await file.read()
     await file.close()
     return success(
@@ -33,6 +34,7 @@ async def preview_import(
             class_id=class_id,
             content=content,
             filename=file.filename or "",
+            bank_id=bank_id,
         )
     )
 
@@ -49,16 +51,20 @@ async def commit_import(
     content: bytes | None = None
     filename: str | None = None
     rows = None
+    bank_id = None
     content_type = request.headers.get("content-type", "")
     if content_type.startswith("application/json"):
         body = await request.json()
         if isinstance(body, dict):
             token = body.get("token")
             rows = body.get("rows")
+            bank_id = body.get("bank_id")
     else:
         form = await request.form()
         raw_token = form.get("token")
         token = str(raw_token) if raw_token else None
+        raw_bank = form.get("bank_id")
+        bank_id = int(raw_bank) if raw_bank not in (None, "") else None
         upload = form.get("file")
         if upload is not None and hasattr(upload, "read"):
             content = await upload.read()
@@ -73,6 +79,7 @@ async def commit_import(
             content=content,
             filename=filename,
             rows=rows,
+            bank_id=bank_id,
         )
     )
 
@@ -80,6 +87,7 @@ async def commit_import(
 @router.get("/classes/{class_id}/questions")
 def list_questions(
     class_id: int,
+    bank_id: int | None = Query(default=None, ge=1),
     type_: str | None = Query(default=None, alias="type"),
     tag: str | None = Query(default=None),
     difficulty: str | None = Query(default=None),
@@ -90,12 +98,13 @@ def list_questions(
     current: CurrentUser = Depends(require_teacher),
     db: Session = Depends(get_db),
 ):
-    """API-M2-03 题库筛选列表。"""
+    """API-M2-03 题库筛选列表（M3.1 增加 bank_id）。"""
     return success(
         question_service.list_questions(
             db,
             current,
             class_id=class_id,
+            bank_id=bank_id,
             type_=type_,
             tag=tag,
             difficulty=difficulty,

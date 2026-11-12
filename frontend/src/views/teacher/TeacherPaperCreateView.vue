@@ -19,6 +19,7 @@ import AppSelect from '@/components/base/AppSelect.vue'
 import AppTag from '@/components/base/AppTag.vue'
 import QuestionPicker from '@/components/business/QuestionPicker.vue'
 import { papersApi } from '@/api/papers'
+import { banksApi } from '@/api/questions'
 import { isApiError, toUserMessage } from '@/api/client'
 import { useClassStore } from '@/stores/class'
 import { useUiStore } from '@/stores/ui'
@@ -31,6 +32,7 @@ import type {
   BlankMode,
   PaperCreatePayload,
   PaperMode,
+  QuestionBank,
   QuestionDifficulty,
   QuestionItem,
 } from '@/api/types'
@@ -54,6 +56,11 @@ const blankMode = ref<BlankMode>('smart')
 const randomTag = ref('')
 const randomDifficulty = ref('')
 const randomCount = ref(10)
+const randomBankIds = ref<number[]>([])
+
+const banks = ref<QuestionBank[]>([])
+const banksLoading = ref(false)
+const banksError = ref('')
 
 const selectedIds = ref<number[]>([])
 const selectedItems = ref<QuestionItem[]>([])
@@ -79,6 +86,44 @@ const currentClass = computed(
   () => classStore.classes.find((item) => String(item.id) === selectedClassId.value) ?? null,
 )
 const classId = computed(() => (selectedClassId.value ? Number(selectedClassId.value) : null))
+
+const randomRangeCount = computed(() => {
+  const scoped = randomBankIds.value.length
+    ? banks.value.filter((bank) => randomBankIds.value.includes(bank.id))
+    : banks.value
+  return scoped.reduce((sum, bank) => sum + bank.question_count, 0)
+})
+
+const selectedBankNames = computed(() =>
+  banks.value
+    .filter((bank) => randomBankIds.value.includes(bank.id))
+    .map((bank) => bank.name),
+)
+const fixedBankNames = computed(() => {
+  const names: string[] = []
+  for (const item of selectedItems.value) {
+    if (item.bank_name && !names.includes(item.bank_name)) names.push(item.bank_name)
+  }
+  return names
+})
+const sourceBankNames = computed(() => {
+  if (mode.value === 'fixed') return fixedBankNames.value
+  return randomBankIds.value.length > 0 ? selectedBankNames.value : []
+})
+const sourceBankLabel = computed(() => {
+  const names = sourceBankNames.value
+  if (names.length === 0) return mode.value === 'fixed' ? '待选题库' : '全部题库'
+  return names.length > 1 ? `${names[0]} +${names.length - 1}` : names[0]
+})
+const sourceBankTitle = computed(() =>
+  sourceBankNames.value.length > 0 ? sourceBankNames.value.join('、') : sourceBankLabel.value,
+)
+
+function toggleRandomBank(bankId: number): void {
+  const index = randomBankIds.value.indexOf(bankId)
+  if (index >= 0) randomBankIds.value = randomBankIds.value.filter((id) => id !== bankId)
+  else randomBankIds.value = [...randomBankIds.value, bankId]
+}
 
 const questionCount = computed(() => {
   if (mode.value === 'fixed') return selectedIds.value.length
@@ -116,6 +161,23 @@ const validationHint = computed(() => {
 })
 const canSubmit = computed(() => validationHint.value === '' && !submitting.value)
 
+async function loadBanks(): Promise<void> {
+  if (!classId.value) {
+    banks.value = []
+    return
+  }
+  banksLoading.value = true
+  banksError.value = ''
+  try {
+    banks.value = await banksApi.list(classId.value)
+  } catch (err) {
+    banks.value = []
+    banksError.value = isApiError(err) && err.code === 40302 ? '无权访问该班级资源' : toUserMessage(err)
+  } finally {
+    banksLoading.value = false
+  }
+}
+
 async function bootstrap(): Promise<void> {
   loadingClasses.value = true
   classErroring.value = false
@@ -132,6 +194,7 @@ async function bootstrap(): Promise<void> {
   const matched = classStore.classes.find((item) => item.id === queryId)
   selectedClassId.value = String(matched ? matched.id : classStore.classes[0].id)
   if (!matched) syncClassQuery()
+  await loadBanks()
 }
 
 function syncClassQuery(): void {
@@ -149,8 +212,12 @@ function handleClassChange(value: string): void {
   selectedIds.value = []
   selectedItems.value = []
   randomTag.value = ''
+  randomBankIds.value = []
+  banks.value = []
+  banksError.value = ''
   submitError.value = ''
   syncClassQuery()
+  void loadBanks()
 }
 
 function backToPapers(): void {
@@ -195,6 +262,7 @@ async function submit(): Promise<void> {
         ? (randomDifficulty.value as QuestionDifficulty)
         : null
       payload.count = Math.floor(Number(randomCount.value))
+      if (randomBankIds.value.length > 0) payload.bank_ids = [...randomBankIds.value]
     }
     const paper = await papersApi.create(Number(selectedClassId.value), payload)
     ui.success('试卷已创建，可在详情页发布')
@@ -349,10 +417,57 @@ onMounted(bootstrap)
             v-if="mode === 'fixed'"
             v-model="selectedIds"
             :class-id="classId"
+            :banks="banks"
             @update:items="selectedItems = $event"
           />
 
           <div v-else class="random-form">
+            <section class="bank-scope" aria-label="随机组卷抽题范围">
+              <div class="bank-scope__head">
+                <span class="bank-scope__title">抽题范围</span>
+                <span class="muted text-xs">可多选题库；不选则从全班题库抽取</span>
+              </div>
+              <p v-if="banksLoading" class="muted text-xs">正在加载题库…</p>
+              <p v-else-if="banksError" class="form-error" role="alert">
+                <AlertCircle :size="14" :stroke-width="1.9" aria-hidden="true" />
+                <span>{{ banksError }}</span>
+              </p>
+              <p v-else-if="banks.length === 0" class="muted text-xs">
+                本班还没有题库，请先在题库页导入题目。
+              </p>
+              <div v-else class="bank-scope__chips">
+                <button
+                  v-for="bank in banks"
+                  :key="bank.id"
+                  class="bank-chip"
+                  :class="{ 'bank-chip--active': randomBankIds.includes(bank.id) }"
+                  type="button"
+                  :aria-pressed="randomBankIds.includes(bank.id)"
+                  @click="toggleRandomBank(bank.id)"
+                >
+                  <Check
+                    v-if="randomBankIds.includes(bank.id)"
+                    :size="12"
+                    :stroke-width="2.6"
+                    aria-hidden="true"
+                  />
+                  <span class="truncate" :title="bank.name">{{ bank.name }}</span>
+                  <span class="bank-chip__count tabular">{{ bank.question_count }}</span>
+                </button>
+              </div>
+              <p class="bank-scope__summary">
+                抽题范围：<strong class="tabular">{{ randomRangeCount }}</strong> 题
+                <button
+                  v-if="randomBankIds.length > 0"
+                  class="bank-scope__clear"
+                  type="button"
+                  @click="randomBankIds = []"
+                >
+                  清空范围
+                </button>
+              </p>
+            </section>
+
             <div class="form-grid">
               <AppInput
                 v-model="randomTag"
@@ -397,7 +512,12 @@ onMounted(bootstrap)
 
             <p class="random-note">
               <AlertCircle :size="14" :stroke-width="1.9" aria-hidden="true" />
-              标签或难度没有匹配题目时，后端会自动回退到本班全库随机；仍无题则提示题库为空。
+              <span v-if="randomBankIds.length > 0">
+                只会在已选题库范围内抽题；范围内没有匹配题目时提示数量不足，不会越界到其他题库。
+              </span>
+              <span v-else>
+                标签或难度没有匹配题目时，后端会自动回退到本班全库随机；仍无题则提示题库为空。
+              </span>
             </p>
           </div>
         </section>
@@ -446,6 +566,10 @@ onMounted(bootstrap)
             <div>
               <dt>组卷方式</dt>
               <dd>{{ PAPER_MODE_LABEL[mode] }}</dd>
+            </div>
+            <div>
+              <dt>来源题库</dt>
+              <dd class="summary__banks" :title="sourceBankTitle">{{ sourceBankLabel }}</dd>
             </div>
             <div>
               <dt>题量</dt>
@@ -721,6 +845,90 @@ onMounted(bootstrap)
   border-top: 1px solid var(--color-border);
 }
 
+.bank-scope {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-alt);
+}
+
+.bank-scope__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.bank-scope__title {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+.bank-scope__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+.bank-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 240px;
+  padding: 5px var(--sp-2);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-xs);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+
+.bank-chip:hover {
+  border-color: var(--color-primary);
+}
+
+.bank-chip--active {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+
+.bank-chip__count {
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+
+.bank-chip--active .bank-chip__count {
+  color: var(--color-primary);
+}
+
+.bank-scope__summary {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  color: var(--color-text-muted);
+  font-size: var(--fs-xs);
+}
+
+.bank-scope__summary strong {
+  color: var(--color-primary);
+}
+
+.bank-scope__clear {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-primary);
+  font-size: var(--fs-xs);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 .quick-counts {
   display: flex;
   align-items: center;
@@ -853,46 +1061,56 @@ onMounted(bootstrap)
   font-size: var(--fs-xl);
   line-height: 1.4;
   overflow-wrap: anywhere;
+  text-align: center;
 }
 
 .summary__class {
   color: var(--color-text-muted);
   font-size: var(--fs-sm);
+  text-align: center;
 }
 
 .summary__stats {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  grid-auto-rows: 36px;
+  align-items: center;
   padding: var(--sp-2) 0;
   border-top: 1px solid var(--color-border);
   border-bottom: 1px solid var(--color-border);
 }
 
 .summary__stats div {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-2);
-  padding: 6px 0;
+  display: contents;
 }
 
 .summary__stats dt {
   color: var(--color-text-muted);
   font-size: var(--fs-xs);
+  text-align: left;
 }
 
 .summary__stats dd {
   display: inline-flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 4px;
+  min-width: 0;
   font-size: var(--fs-sm);
   font-weight: 600;
+  text-align: right;
 }
 
 .summary__score {
   color: var(--color-primary);
   font-size: var(--fs-xl) !important;
+}
+
+.summary__banks {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .summary__hint {

@@ -236,6 +236,9 @@ export interface QuestionOption {
 export interface QuestionItem {
   id: number
   class_id: number
+  /** M3.1 每道题必须归属一个题库。 */
+  bank_id: number
+  bank_name: string | null
   type: QuestionType
   stem: string
   options: QuestionOption[] | null
@@ -248,7 +251,28 @@ export interface QuestionItem {
   updated_at: string
 }
 
+export interface QuestionBank {
+  id: number
+  class_id: number
+  name: string
+  description: string | null
+  question_count: number
+  created_at: string
+  updated_at: string
+}
+
+export interface QuestionBankCreatePayload {
+  name: string
+  description?: string | null
+}
+
+export interface QuestionBankUpdatePayload {
+  name?: string
+  description?: string | null
+}
+
 export interface QuestionListQuery extends PageQuery {
+  bank_id?: number
   type?: QuestionType
   /** 后端实际参数名为 tag；knowledge_tag 为契约派工名，两个键保持同值。 */
   knowledge_tag?: string
@@ -308,12 +332,19 @@ export interface QuestionImportPreview {
   unmapped_columns?: string[]
   rows?: QuestionImportRow[]
   stats?: QuestionImportStats
+  /** M3.1：指定导入题库时回显；未指定为 null。 */
+  bank_id?: number | null
+  bank_name?: string | null
+  /** M3.1：未指定题库时用文件名去后缀给出的建议库名。 */
+  suggested_bank_name?: string
 }
 
 /** 提交入参：只带 token 走服务端预览结果；带 rows 时用前端编辑后的行重新校验。 */
 export interface QuestionImportCommitPayload {
   token: string
   rows?: Array<Record<string, unknown>>
+  /** M3.1：不传则后端自动建「导入题库-{日期}」。 */
+  bank_id?: number | null
 }
 
 export interface QuestionImportCommit {
@@ -371,14 +402,23 @@ export interface PaperQuestion {
   difficulty: QuestionDifficulty
 }
 
+export interface PaperBankRef {
+  id: number
+  name: string
+}
+
 export interface PaperDetail extends PaperItem {
   questions: PaperQuestion[]
+  /** M3.1：试卷题目涉及的来源题库。 */
+  banks: PaperBankRef[]
 }
 
 export interface PaperCreatePayload {
   title: string
   mode: PaperMode
   question_ids?: number[]
+  /** M3.1：固定组卷与 question_ids 二选一；随机组卷作为抽题范围。 */
+  bank_ids?: number[]
   knowledge_tag?: string | null
   difficulty?: QuestionDifficulty | null
   count?: number

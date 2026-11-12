@@ -15,12 +15,14 @@ from app.models.attempt import Attempt
 from app.models.paper import Paper
 from app.models.paper_question import PaperQuestion
 from app.models.question import Question
+from app.models.question_bank import QuestionBank
 from app.models.student import Student
 from app.repositories.answer_record_repo import AnswerRecordRepository
 from app.repositories.attempt_repo import AttemptRepository
 from app.repositories.paper_repo import PaperRepository
 from app.repositories.question_repo import QuestionRepository
 from app.schemas.paper import PaperCreateRequest, PaperUpdateRequest
+from app.services import question_bank_service
 from app.services.attempt_view import attempt_time_fields
 from app.services.class_service import require_owned_class
 from app.utils.response import page_data
@@ -90,27 +92,47 @@ def create_paper(
     require_owned_class(db, class_id, current.user_id)
     question_repo = QuestionRepository(db)
     selected: list[Question]
+    bank_ids = list(dict.fromkeys(payload.bank_ids or []))
+    banks = (
+        question_bank_service.resolve_banks(db, class_id=class_id, bank_ids=bank_ids)
+        if bank_ids
+        else []
+    )
 
     if payload.mode == "fixed":
-        ids = list(dict.fromkeys(payload.question_ids or []))
-        selected = question_repo.get_many(class_id, ids)
-        if len(selected) != len(ids):
-            raise AppException(ErrorCode.VALIDATION_ERROR, "存在不属于本班或已删除的题目")
-        order = {question_id: index for index, question_id in enumerate(ids)}
-        selected.sort(key=lambda question: order[question.id])
+        if banks:
+            selected = question_repo.list_by_banks(class_id, [bank.id for bank in banks])
+            if not selected:
+                raise AppException(ErrorCode.QUESTION_BANK_EMPTY, "题库为空，无法组卷")
+        else:
+            ids = list(dict.fromkeys(payload.question_ids or []))
+            selected = question_repo.get_many(class_id, ids)
+            if len(selected) != len(ids):
+                raise AppException(ErrorCode.VALIDATION_ERROR, "存在不属于本班或已删除的题目")
+            order = {question_id: index for index, question_id in enumerate(ids)}
+            selected.sort(key=lambda question: order[question.id])
     else:
         if not payload.count:
             raise AppException(ErrorCode.VALIDATION_ERROR, "随机组卷必须提供 count")
         candidates = question_repo.random_candidates(
-            class_id, tag=payload.knowledge_tag, difficulty=payload.difficulty
+            class_id,
+            tag=payload.knowledge_tag,
+            difficulty=payload.difficulty,
+            bank_ids=[bank.id for bank in banks] or None,
         )
-        # R1-5：带标签/难度抽不到时回落整库随机
-        if not candidates and (payload.knowledge_tag or payload.difficulty):
+        # 未选择题库时保留 M2B 的整班回落；已选范围时不越界
+        if not candidates and not banks and (payload.knowledge_tag or payload.difficulty):
             candidates = question_repo.random_candidates(class_id, tag=None, difficulty=None)
         if not candidates:
-            raise AppException(ErrorCode.QUESTION_BANK_EMPTY, "题库为空，无法组卷")
+            raise AppException(
+                ErrorCode.QUESTION_BANK_EMPTY,
+                f"题库为空，无法组卷（当前范围 {len(candidates)} 题）",
+            )
         if len(candidates) < payload.count:
-            raise AppException(ErrorCode.QUESTION_BANK_EMPTY, "题库数量不足，无法组卷")
+            raise AppException(
+                ErrorCode.QUESTION_BANK_EMPTY,
+                f"当前范围 {len(candidates)} 题，不足以抽取 {payload.count} 题",
+            )
         selected = random.sample(candidates, payload.count)
 
     if not selected:
@@ -152,10 +174,32 @@ def create_paper(
 def paper_detail(db: Session, current: CurrentUser, *, paper_id: int) -> dict[str, Any]:
     paper = _require_paper_for_teacher(db, paper_id, current.user_id)
     rows = PaperRepository(db).questions(paper.id)
+    banks = _paper_banks(db, rows)
     return {
         **_paper_item(paper),
         "questions": [_teacher_question(question, pq) for pq, question in rows],
+        "banks": banks,
     }
+
+
+def _paper_banks(
+    db: Session, rows: list[tuple[PaperQuestion, Question]]
+) -> list[dict[str, Any]]:
+    bank_ids: list[int] = []
+    for _pq, question in rows:
+        if question.bank_id not in bank_ids:
+            bank_ids.append(question.bank_id)
+    if not bank_ids:
+        return []
+    banks = {
+        bank.id: bank
+        for bank in db.query(QuestionBank).filter(QuestionBank.id.in_(bank_ids)).all()
+    }
+    return [
+        {"id": bank_id, "name": banks[bank_id].name}
+        for bank_id in bank_ids
+        if bank_id in banks
+    ]
 
 
 def update_paper(

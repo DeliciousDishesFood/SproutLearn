@@ -543,7 +543,13 @@ def normalize_edited_rows(rows: list[Any]) -> tuple[list[dict[str, Any]], list[d
     return items, errors
 
 
-def store_preview(*, class_id: int, teacher_id: int, parsed: dict[str, Any]) -> str:
+def store_preview(
+    *,
+    class_id: int,
+    teacher_id: int,
+    parsed: dict[str, Any],
+    bank_id: int | None = None,
+) -> str:
     """把预览结果（含逐行错误）写入 Redis，返回一次性 token。"""
     settings = get_settings()
     token = secrets.token_urlsafe(24)
@@ -556,6 +562,7 @@ def store_preview(*, class_id: int, teacher_id: int, parsed: dict[str, Any]) -> 
             "total": parsed["total"],
             "mapping": parsed.get("mapping", {}),
             "unmapped_columns": parsed.get("unmapped_columns", []),
+            "bank_id": bank_id,
         },
         ensure_ascii=False,
     )
@@ -598,15 +605,17 @@ def commit_questions(
     *,
     class_id: int,
     teacher_id: int,
+    bank_id: int,
     items: list[dict[str, Any]],
 ) -> list[int]:
-    """把预览中的有效题写入 question 表（draft）。"""
+    """把预览中的有效题写入 question 表（draft，归入指定题库）。"""
     if not items:
         raise AppException(ErrorCode.IMPORT_FORMAT_ERROR, "没有可导入的题目")
     created: list[Question] = []
     for item in items:
         question = Question(
             class_id=class_id,
+            bank_id=bank_id,
             type=item["type"],
             stem=item["stem"],
             options_json=item.get("options"),

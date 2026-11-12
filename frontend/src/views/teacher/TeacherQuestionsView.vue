@@ -4,9 +4,11 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   AlertCircle,
+  PencilLine,
   Plus,
   RefreshCw,
   Search,
+  Trash2,
   UploadCloud,
 } from 'lucide-vue-next'
 import AppButton from '@/components/base/AppButton.vue'
@@ -21,7 +23,7 @@ import QuestionCard from '@/components/business/QuestionCard.vue'
 import QuestionEditDrawer from '@/components/business/QuestionEditDrawer.vue'
 import QuestionExplainModal from '@/components/business/QuestionExplainModal.vue'
 import QuestionImportPanel from '@/components/business/QuestionImportPanel.vue'
-import { questionsApi } from '@/api/questions'
+import { questionsApi, banksApi } from '@/api/questions'
 import { isApiError, toUserMessage } from '@/api/client'
 import { useClassStore } from '@/stores/class'
 import { useUiStore } from '@/stores/ui'
@@ -32,6 +34,7 @@ import {
   QUESTION_TYPE_META,
 } from '@/utils/constants'
 import type {
+  QuestionBank,
   QuestionDifficulty,
   QuestionItem,
   QuestionStatus,
@@ -66,6 +69,23 @@ const pageSize = ref(PAGE_SIZE)
 const loading = ref(false)
 const loadError = ref('')
 const classErroring = ref(false)
+
+const banks = ref<QuestionBank[]>([])
+const banksLoading = ref(false)
+const banksError = ref('')
+const activeBankId = ref<number | null>(null)
+
+const bankModalOpen = ref(false)
+const bankModalMode = ref<'create' | 'rename'>('create')
+const bankNameDraft = ref('')
+const bankTarget = ref<QuestionBank | null>(null)
+const bankSaving = ref(false)
+const bankError = ref('')
+
+const bankDeleteOpen = ref(false)
+const bankDeleteTarget = ref<QuestionBank | null>(null)
+const bankDeleting = ref(false)
+const bankDeleteError = ref('')
 
 const importOpen = ref(false)
 const editOpen = ref(false)
@@ -115,6 +135,15 @@ const hasFilters = computed(() => {
 const currentClass = computed(
   () => classStore.classes.find((item) => String(item.id) === selectedClassId.value) ?? null,
 )
+const activeBank = computed(
+  () => banks.value.find((item) => item.id === activeBankId.value) ?? null,
+)
+const allQuestionCount = computed(() =>
+  banks.value.reduce((sum, bank) => sum + bank.question_count, 0),
+)
+const bankListEmpty = computed(
+  () => !banksLoading.value && !banksError.value && banks.value.length === 0,
+)
 const questionBankEmpty = computed(
   () => !loading.value && !loadError.value && questions.value.length === 0,
 )
@@ -139,6 +168,7 @@ async function loadQuestions(nextPage = page.value, silent = false): Promise<voi
   loadError.value = ''
   try {
     const result = await questionsApi.list(Number(selectedClassId.value), {
+      bank_id: activeBankId.value ?? undefined,
       type: filters.value.type ? (filters.value.type as QuestionType) : undefined,
       knowledge_tag: filters.value.tag || undefined,
       difficulty: filters.value.difficulty
@@ -162,6 +192,117 @@ async function loadQuestions(nextPage = page.value, silent = false): Promise<voi
   }
 }
 
+async function loadBanks(): Promise<void> {
+  if (!selectedClassId.value) return
+  banksLoading.value = true
+  banksError.value = ''
+  try {
+    const result = await banksApi.list(Number(selectedClassId.value))
+    banks.value = result
+    if (
+      activeBankId.value !== null &&
+      !result.some((bank) => bank.id === activeBankId.value)
+    ) {
+      activeBankId.value = null
+    }
+  } catch (err) {
+    banks.value = []
+    banksError.value = mapError(err)
+  } finally {
+    banksLoading.value = false
+  }
+}
+
+function selectBank(bankId: number | null): void {
+  if (bankId === activeBankId.value) return
+  activeBankId.value = bankId
+  page.value = 1
+  void loadQuestions(1)
+}
+
+function openCreateBank(): void {
+  if (!selectedClassId.value) return
+  bankModalMode.value = 'create'
+  bankTarget.value = null
+  bankNameDraft.value = ''
+  bankError.value = ''
+  bankModalOpen.value = true
+}
+
+function openRenameBank(bank: QuestionBank): void {
+  bankModalMode.value = 'rename'
+  bankTarget.value = bank
+  bankNameDraft.value = bank.name
+  bankError.value = ''
+  bankModalOpen.value = true
+}
+
+async function submitBank(): Promise<void> {
+  const name = bankNameDraft.value.trim()
+  if (!name) {
+    bankError.value = '请填写题库名称'
+    return
+  }
+  if (name.length > 60) {
+    bankError.value = '题库名称不能超过 60 字'
+    return
+  }
+  if (!selectedClassId.value || bankSaving.value) return
+  bankSaving.value = true
+  bankError.value = ''
+  try {
+    if (bankModalMode.value === 'create') {
+      const created = await banksApi.create(Number(selectedClassId.value), { name })
+      ui.success('题库已创建')
+      await loadBanks()
+      activeBankId.value = created.id
+      page.value = 1
+      await loadQuestions(1)
+    } else if (bankTarget.value) {
+      await banksApi.update(bankTarget.value.id, { name })
+      ui.success('题库已改名')
+      await loadBanks()
+      await loadQuestions(page.value)
+    }
+    bankModalOpen.value = false
+    bankTarget.value = null
+  } catch (err) {
+    if (isApiError(err) && err.code === 40913) bankError.value = '题库名称已存在，请换一个名称'
+    else bankError.value = mapError(err)
+  } finally {
+    bankSaving.value = false
+  }
+}
+
+function askDeleteBank(bank: QuestionBank): void {
+  if (bank.question_count > 0) return
+  bankDeleteTarget.value = bank
+  bankDeleteError.value = ''
+  bankDeleteOpen.value = true
+}
+
+async function confirmDeleteBank(): Promise<void> {
+  if (!bankDeleteTarget.value || bankDeleting.value) return
+  bankDeleting.value = true
+  bankDeleteError.value = ''
+  try {
+    await banksApi.remove(bankDeleteTarget.value.id)
+    ui.success('题库已删除')
+    bankDeleteOpen.value = false
+    bankDeleteTarget.value = null
+    await loadBanks()
+    await loadQuestions(1)
+  } catch (err) {
+    if (isApiError(err) && err.code === 40912) {
+      bankDeleteError.value = '题库内仍有题目，请先移出或删除题目后再删库'
+    } else {
+      bankDeleteError.value = mapError(err)
+    }
+  } finally {
+    bankDeleting.value = false
+  }
+}
+
 async function bootstrap(): Promise<void> {
   classErroring.value = false
   try {
@@ -175,6 +316,8 @@ async function bootstrap(): Promise<void> {
   const matched = classStore.classes.find((item) => item.id === queryId)
   selectedClassId.value = String(matched ? matched.id : classStore.classes[0].id)
   if (!matched) syncClassQuery()
+  activeBankId.value = null
+  await loadBanks()
   await loadQuestions(1)
 }
 
@@ -187,7 +330,11 @@ function handleClassChange(value: string): void {
   total.value = 0
   page.value = 1
   loadError.value = ''
+  activeBankId.value = null
+  banks.value = []
+  banksError.value = ''
   syncClassQuery()
+  void loadBanks()
   void loadQuestions(1)
 }
 
@@ -225,6 +372,7 @@ async function handleImported(count: number): Promise<void> {
   ui.success(`已导入 ${count} 道题目，均为草稿状态`)
   filters.value = emptyFilters()
   keywordDraft.value = ''
+  await loadBanks()
   await loadQuestions(1)
 }
 
@@ -333,6 +481,83 @@ onMounted(bootstrap)
         </div>
       </section>
 
+      <div class="bank-layout">
+        <aside class="bank-sidebar panel" aria-label="题库分类">
+          <header class="bank-sidebar__head">
+            <div>
+              <p class="eyebrow">BANKS</p>
+              <h2 class="bank-sidebar__title">题库分类</h2>
+            </div>
+            <AppButton
+              variant="secondary"
+              size="sm"
+              :disabled="!selectedClassId || banksLoading"
+              @click="openCreateBank"
+            >
+              <Plus :size="14" :stroke-width="2" />
+              新建
+            </AppButton>
+          </header>
+
+          <p v-if="banksError" class="bank-sidebar__error" role="alert">
+            <AlertCircle :size="14" :stroke-width="1.9" aria-hidden="true" />
+            <span>{{ banksError }}</span>
+            <button class="bank-sidebar__retry" type="button" @click="loadBanks">重试</button>
+          </p>
+
+          <ul v-else class="bank-list">
+            <li>
+              <button
+                class="bank-row"
+                :class="{ 'bank-row--active': activeBankId === null }"
+                type="button"
+                @click="selectBank(null)"
+              >
+                <span class="bank-row__name">全部题库</span>
+                <span class="bank-row__count tabular">{{ allQuestionCount }}</span>
+              </button>
+            </li>
+            <li v-for="bank in banks" :key="bank.id">
+              <div class="bank-row" :class="{ 'bank-row--active': activeBankId === bank.id }">
+                <button class="bank-row__main" type="button" @click="selectBank(bank.id)">
+                  <span class="bank-row__name truncate" :title="bank.name">{{ bank.name }}</span>
+                  <span class="bank-row__count tabular">{{ bank.question_count }}</span>
+                </button>
+                <span class="bank-row__actions">
+                  <button
+                    class="bank-row__action"
+                    type="button"
+                    :aria-label="`重命名题库 ${bank.name}`"
+                    title="重命名"
+                    @click.stop="openRenameBank(bank)"
+                  >
+                    <PencilLine :size="13" :stroke-width="1.9" />
+                  </button>
+                  <button
+                    class="bank-row__action"
+                    type="button"
+                    :aria-label="`删除题库 ${bank.name}`"
+                    :title="
+                      bank.question_count > 0
+                        ? `题库内还有 ${bank.question_count} 道题，先移出或删除题目后再删库`
+                        : '删除题库'
+                    "
+                    :disabled="bank.question_count > 0"
+                    @click.stop="askDeleteBank(bank)"
+                  >
+                    <Trash2 :size="13" :stroke-width="1.9" />
+                  </button>
+                </span>
+              </div>
+            </li>
+          </ul>
+
+          <p v-if="bankListEmpty" class="bank-sidebar__empty">
+            还没有题库。导入题目时可在导入面板新建，或点右上角「新建」。
+          </p>
+        </aside>
+
+        <div class="bank-main">
       <section class="filter-bar panel" aria-label="题库筛选">
         <div class="filter-grid">
           <AppSelect
@@ -396,11 +621,19 @@ onMounted(bootstrap)
 
       <section v-else-if="questions.length === 0" class="panel">
         <AppEmpty
-          :title="hasFilters ? '没有符合条件的题目' : '题库还是空的'"
+          :title="
+            hasFilters
+              ? '没有符合条件的题目'
+              : activeBank
+                ? `${activeBank.name} 还没有题目`
+                : '题库还是空的'
+          "
           :description="
             hasFilters
               ? '换一个题型、难度或关键词试试，或清除筛选。'
-              : '支持 JSON / XLSX 批量导入；也可以先导入模板里的示例题。'
+              : activeBank
+                ? '导入题目会默认归入当前题库，也可在导入面板切换目标题库。'
+                : '支持 JSON / XLSX 批量导入；也可以先导入模板里的示例题。'
           "
         >
           <template #action>
@@ -436,11 +669,15 @@ onMounted(bootstrap)
       </template>
 
       <p v-if="questionBankEmpty" class="sr-only" aria-live="polite">题库为空</p>
+        </div>
+      </div>
     </template>
 
     <QuestionImportPanel
       v-model="importOpen"
       :class-id="selectedClassId ? Number(selectedClassId) : null"
+      :bank-id="activeBankId"
+      :banks="banks"
       @imported="handleImported"
     />
 
@@ -455,6 +692,52 @@ onMounted(bootstrap)
       :question-id="explainTarget?.id ?? null"
       :question-stem="explainTarget?.stem"
     />
+
+    <AppModal
+      v-model="bankModalOpen"
+      :title="bankModalMode === 'create' ? '新建题库' : '重命名题库'"
+      :description="
+        bankModalMode === 'create'
+          ? '题库按班级隔离，名称在班内唯一；题目必须归属于一个题库。'
+          : '改名只影响分类展示，不影响已有试卷与作答记录。'
+      "
+      :confirm-text="bankModalMode === 'create' ? '创建题库' : '保存名称'"
+      :confirm-loading="bankSaving"
+      @confirm="submitBank"
+    >
+      <div class="edit-form">
+        <AppInput
+          v-model="bankNameDraft"
+          label="题库名称"
+          placeholder="如：第5章 网络基础"
+          :maxlength="60"
+          :disabled="bankSaving"
+        />
+        <p v-if="bankError" class="form-error" role="alert">
+          <AlertCircle :size="16" :stroke-width="1.9" aria-hidden="true" />
+          <span>{{ bankError }}</span>
+        </p>
+      </div>
+    </AppModal>
+
+    <AppModal
+      v-model="bankDeleteOpen"
+      title="删除这个题库？"
+      description="仅空题库可以删除；题库内有题目时请先逐题移动或删除。"
+      confirm-text="删除题库"
+      confirm-variant="danger"
+      :confirm-loading="bankDeleting"
+      @confirm="confirmDeleteBank"
+    >
+      <div class="delete-preview">
+        <AppTag tone="danger" dot>不可撤销</AppTag>
+        <p>{{ bankDeleteTarget?.name }}</p>
+      </div>
+      <p v-if="bankDeleteError" class="form-error" role="alert">
+        <AlertCircle :size="16" :stroke-width="1.9" aria-hidden="true" />
+        <span>{{ bankDeleteError }}</span>
+      </p>
+    </AppModal>
 
     <AppModal
       v-model="deleteOpen"
@@ -478,6 +761,170 @@ onMounted(bootstrap)
 </template>
 
 <style scoped>
+.bank-layout {
+  display: grid;
+  grid-template-columns: 236px minmax(0, 1fr);
+  gap: var(--sp-4);
+  align-items: start;
+}
+
+.bank-main {
+  min-width: 0;
+}
+
+.bank-sidebar {
+  position: sticky;
+  top: calc(var(--topbar-h) + var(--sp-4));
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  max-height: calc(100vh - var(--topbar-h) - var(--sp-6));
+  padding: var(--sp-4);
+  overflow-y: auto;
+}
+
+.bank-sidebar__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+
+.bank-sidebar__title {
+  font-size: var(--fs-base);
+  line-height: 1.4;
+}
+
+.bank-sidebar__error {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--color-danger);
+  font-size: var(--fs-xs);
+  line-height: 1.5;
+}
+
+.bank-sidebar__retry {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-primary);
+  font-size: var(--fs-xs);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.bank-sidebar__empty {
+  color: var(--color-text-muted);
+  font-size: var(--fs-xs);
+  line-height: 1.6;
+}
+
+.bank-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.bank-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  border-radius: var(--radius-xs);
+  color: var(--color-text);
+}
+
+button.bank-row {
+  gap: var(--sp-2);
+  padding: 8px var(--sp-2);
+  border: 0;
+  background: transparent;
+  text-align: left;
+  font-size: var(--fs-sm);
+}
+
+.bank-row:hover {
+  background: var(--color-surface-alt);
+}
+
+.bank-row--active,
+.bank-row--active:hover {
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+
+.bank-row__main {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex: 1;
+  min-width: 0;
+  padding: 8px var(--sp-2);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.bank-row__name {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-sm);
+}
+
+.bank-row__count {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  font-size: var(--fs-xs);
+}
+
+.bank-row--active .bank-row__count {
+  color: var(--color-primary);
+}
+
+.bank-row__actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding-right: 4px;
+  opacity: 0.65;
+  transition: opacity 140ms ease-out;
+}
+
+.bank-row:hover .bank-row__actions,
+.bank-row--active .bank-row__actions {
+  opacity: 1;
+}
+
+.bank-row__action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--color-text-muted);
+}
+
+.bank-row__action:hover:not(:disabled) {
+  background: var(--color-surface);
+  color: var(--color-primary);
+}
+
+.bank-row__action:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
 .question-toolbar {
   margin-bottom: var(--sp-4);
   padding: var(--sp-4) var(--sp-5);
@@ -565,6 +1012,15 @@ onMounted(bootstrap)
 }
 
 @media (max-width: 1023px) {
+  .bank-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .bank-sidebar {
+    position: static;
+    max-height: none;
+  }
+
   .question-grid,
   .filter-grid {
     grid-template-columns: 1fr;

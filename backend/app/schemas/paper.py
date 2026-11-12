@@ -15,6 +15,7 @@ class PaperCreateRequest(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     mode: Mode
     question_ids: list[int] | None = None
+    bank_ids: list[int] | None = None
     knowledge_tag: str | None = None
     difficulty: Difficulty | None = None
     count: int | None = Field(default=None, ge=1, le=500)
@@ -33,10 +34,14 @@ class PaperCreateRequest(BaseModel):
     @model_validator(mode="after")
     def _check_mode(self) -> "PaperCreateRequest":
         if self.mode == "fixed":
-            if not self.question_ids:
-                raise ValueError("固定组卷必须提供 question_ids")
-            if len(set(self.question_ids)) != len(self.question_ids):
+            if bool(self.question_ids) and bool(self.bank_ids):
+                raise ValueError("fixed 模式 question_ids 与 bank_ids 只能二选一")
+            if not self.question_ids and not self.bank_ids:
+                raise ValueError("固定组卷必须提供 question_ids 或 bank_ids")
+            if self.question_ids and len(set(self.question_ids)) != len(self.question_ids):
                 raise ValueError("question_ids 不能重复")
+            if self.bank_ids and len(set(self.bank_ids)) != len(self.bank_ids):
+                raise ValueError("bank_ids 不能重复")
         else:
             if not self.count:
                 raise ValueError("随机组卷必须提供 count")

@@ -15,7 +15,7 @@ from app.exceptions import AppException, ErrorCode
 from app.logging_config import setup_logging
 from app.middleware.request_id import RequestIdMiddleware
 from app.middleware.request_log import RequestLogMiddleware
-from app.routers import attempts, auth, binding, classes, health, knowledge, papers, questions
+from app.routers import attempts, auth, banks, binding, classes, health, knowledge, papers, questions
 from app.services.llm.registry import validate_chain
 from app.utils.response import fail
 
@@ -48,6 +48,7 @@ def create_app() -> FastAPI:
     application.include_router(classes.router, prefix="/api/v1")
     application.include_router(knowledge.router, prefix="/api/v1")
     application.include_router(binding.router, prefix="/api/v1")
+    application.include_router(banks.router, prefix="/api/v1")
     application.include_router(questions.router, prefix="/api/v1")
     application.include_router(papers.router, prefix="/api/v1")
     application.include_router(attempts.router, prefix="/api/v1")

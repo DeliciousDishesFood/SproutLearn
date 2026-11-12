@@ -78,13 +78,13 @@ const savingEdit = ref(false)
 const editError = ref('')
 
 const columns: TableColumn[] = [
-  { key: 'student', title: '学生' },
+  { key: 'student', title: '学生', width: '180px' },
   { key: 'student_no', title: '学号', width: '120px' },
-  { key: 'status', title: '状态', width: '96px' },
-  { key: 'score', title: '得分', width: '104px', align: 'right' },
-  { key: 'needs_review', title: '待复核', width: '92px', align: 'right' },
+  { key: 'status', title: '状态', width: '100px' },
+  { key: 'score', title: '得分', width: '100px', align: 'right' },
+  { key: 'needs_review', title: '待复核', width: '90px', align: 'right' },
   { key: 'submitted_at', title: '提交时间', width: '160px' },
-  { key: 'actions', title: '操作', width: '92px', align: 'right' },
+  { key: 'actions', title: '操作', width: '88px', align: 'right' },
 ]
 
 const blankModeOptions: SelectOption[] = (
@@ -278,6 +278,10 @@ onMounted(loadPaper)
         <p class="page-subtitle">
           发布前可调整标题、时长与判分严格度；发布后内容锁定，学生作答与成绩会实时汇总到这里。
         </p>
+        <div v-if="paper?.banks?.length" class="paper-banks" aria-label="来源题库">
+          <span class="paper-banks__label">来源题库</span>
+          <AppTag v-for="bank in paper.banks" :key="bank.id" tone="primary">{{ bank.name }}</AppTag>
+        </div>
       </div>
       <div class="page-actions">
         <AppButton variant="ghost" @click="backToPapers">
@@ -437,13 +441,14 @@ onMounted(loadPaper)
         </p>
 
         <AppTable
+          class="attempts-table"
           :columns="columns"
           :rows="attempts"
           :loading="attemptsLoading"
           :skeleton-rows="4"
           empty-title="还没有学生作答"
           empty-description="试卷发布后，学生的提交会出现在这里。"
-          min-width="760px"
+          min-width="840px"
         >
           <template #cell-student="{ row }">
             <div class="student-cell">
@@ -461,13 +466,13 @@ onMounted(loadPaper)
             <span class="tabular score-cell">{{ row.total_score }} / {{ row.full_score }}</span>
           </template>
           <template #cell-needs_review="{ row }">
-            <AppTag v-if="row.needs_review_count > 0" tone="accent" dot>
+            <AppTag v-if="row.needs_review_count > 0" tone="accent" dot class="tabular">
               {{ row.needs_review_count }} 题
             </AppTag>
-            <span v-else class="muted text-xs">—</span>
+            <span v-else class="muted text-xs tabular">—</span>
           </template>
           <template #cell-submitted_at="{ row }">
-            <span class="text-sm">{{ formatDateTime(row.submitted_at) }}</span>
+            <span class="text-sm time-cell">{{ formatDateTime(row.submitted_at) }}</span>
           </template>
           <template #cell-actions="{ row }">
             <AppButton
@@ -567,6 +572,20 @@ onMounted(loadPaper)
   align-items: center;
   gap: var(--sp-2);
   flex-wrap: wrap;
+}
+
+.paper-banks {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  flex-wrap: wrap;
+  margin-top: var(--sp-2);
+}
+
+.paper-banks__label {
+  margin-right: 2px;
+  color: var(--color-text-muted);
+  font-size: var(--fs-xs);
 }
 
 .paper-overview {
@@ -707,10 +726,26 @@ onMounted(loadPaper)
   color: var(--color-success);
 }
 
+.attempts-table :deep(table) {
+  table-layout: fixed;
+}
+
+.attempts-table :deep(td) {
+  vertical-align: middle;
+}
+
 .student-cell {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
+  min-width: 0;
+}
+
+.student-cell strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .student-cell__avatar {
@@ -728,6 +763,11 @@ onMounted(loadPaper)
 
 .score-cell {
   font-weight: 600;
+}
+
+.time-cell {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .attempts-error {

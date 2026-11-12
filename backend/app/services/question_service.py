@@ -16,7 +16,9 @@ from app.deps import CurrentUser
 from app.exceptions import AppException, ErrorCode
 from app.models.question import Question
 from app.repositories.question_repo import QuestionRepository
+from app.repositories.question_bank_repo import QuestionBankRepository
 from app.schemas.question import QuestionUpdateRequest
+from app.services import question_bank_service
 from app.services.class_service import require_owned_class
 from app.services.question_import import (
     clear_preview,
@@ -34,10 +36,12 @@ from app.utils.time import fmt_dt, now_naive
 _settings = get_settings()
 
 
-def _item(question: Question) -> dict[str, Any]:
+def _item(question: Question, bank_name: str | None = None) -> dict[str, Any]:
     return {
         "id": question.id,
         "class_id": question.class_id,
+        "bank_id": question.bank_id,
+        "bank_name": bank_name,
         "type": question.type,
         "stem": question.stem,
         "options": question.options_json,
@@ -58,10 +62,22 @@ def preview_import(
     class_id: int,
     content: bytes,
     filename: str,
+    bank_id: int | None = None,
 ) -> dict[str, Any]:
     require_owned_class(db, class_id, current.user_id)
+    bank = (
+        question_bank_service.resolve_bank(db, class_id=class_id, bank_id=bank_id)
+        if bank_id is not None
+        else None
+    )
     parsed = parse_import(content, filename)
-    token = store_preview(class_id=class_id, teacher_id=current.user_id, parsed=parsed)
+    token = store_preview(
+        class_id=class_id,
+        teacher_id=current.user_id,
+        parsed=parsed,
+        bank_id=bank.id if bank else None,
+    )
+    suggested = question_bank_service.suggested_bank_name(filename)
     return {
         "token": token,
         "total": parsed["total"],
@@ -81,6 +97,9 @@ def preview_import(
                 "invalid": len(parsed["errors"]),
             },
         ),
+        "bank_id": bank.id if bank else None,
+        "bank_name": bank.name if bank else None,
+        "suggested_bank_name": suggested,
     }
 
 
@@ -93,10 +112,12 @@ def commit_import(
     content: bytes | None,
     filename: str | None,
     rows: list[Any] | None = None,
+    bank_id: int | None = None,
 ) -> dict[str, Any]:
     require_owned_class(db, class_id, current.user_id)
     errors: list[dict[str, Any]] = []
     items: list[dict[str, Any]] = []
+    payload: dict[str, Any] = {}
     if token:
         payload = load_preview(token, class_id=class_id, teacher_id=current.user_id)
         if rows is not None:
@@ -116,7 +137,22 @@ def commit_import(
         errors = parsed["errors"]
     if errors:
         raise AppException(ErrorCode.IMPORT_FORMAT_ERROR, "导入存在格式错误，请修正后重试", data={"errors": errors})
-    ids = commit_questions(db, class_id=class_id, teacher_id=current.user_id, items=items)
+    target_bank_id = bank_id if bank_id is not None else payload.get("bank_id")
+    if target_bank_id is not None:
+        bank = question_bank_service.resolve_bank(
+            db, class_id=class_id, bank_id=int(target_bank_id)
+        )
+    else:
+        bank = question_bank_service.get_or_create_import_bank(
+            db, class_id=class_id, teacher_id=current.user_id
+        )
+    ids = commit_questions(
+        db,
+        class_id=class_id,
+        teacher_id=current.user_id,
+        bank_id=bank.id,
+        items=items,
+    )
     if token:
         clear_preview(token)
     return {"inserted": len(ids), "question_ids": ids}
@@ -127,6 +163,7 @@ def list_questions(
     current: CurrentUser,
     *,
     class_id: int,
+    bank_id: int | None,
     type_: str | None,
     tag: str | None,
     difficulty: str | None,
@@ -137,6 +174,8 @@ def list_questions(
 ) -> dict[str, Any]:
     require_owned_class(db, class_id, current.user_id)
     repo = QuestionRepository(db)
+    if bank_id is not None:
+        question_bank_service.resolve_bank(db, class_id=class_id, bank_id=bank_id)
     total = repo.count_scoped(
         class_id,
         type_=type_,
@@ -144,6 +183,7 @@ def list_questions(
         difficulty=difficulty,
         status=status,
         keyword=keyword,
+        bank_id=bank_id,
     )
     rows = repo.list_scoped(
         class_id,
@@ -154,8 +194,25 @@ def list_questions(
         keyword=keyword,
         offset=(page - 1) * page_size,
         limit=page_size,
+        bank_id=bank_id,
     )
-    return page_data([_item(row) for row in rows], total, page, page_size)
+    bank_ids = {row.bank_id for row in rows}
+    banks = (
+        {
+            bank.id: bank.name
+            for bank in QuestionBankRepository(db).get_many_scoped(
+                class_id, list(bank_ids)
+            )
+        }
+        if bank_ids
+        else {}
+    )
+    return page_data(
+        [_item(row, banks.get(row.bank_id)) for row in rows],
+        total,
+        page,
+        page_size,
+    )
 
 
 def _merged_question(question: Question, payload: QuestionUpdateRequest) -> dict[str, Any]:
@@ -199,13 +256,19 @@ def update_question(
     question.analysis = item.get("analysis")
     question.knowledge_tag = item.get("knowledge_tag") or "未分类"
     question.difficulty = item.get("difficulty") or "medium"
+    if "bank_id" in fields and payload.bank_id is not None:
+        bank = question_bank_service.resolve_bank(
+            db, class_id=question.class_id, bank_id=payload.bank_id
+        )
+        question.bank_id = bank.id
     try:
         db.commit()
     except Exception:
         db.rollback()
         raise
     db.refresh(question)
-    return _item(question)
+    bank = QuestionBankRepository(db).get_by_id(question.bank_id)
+    return _item(question, bank.name if bank else None)
 
 
 def delete_question(db: Session, current: CurrentUser, *, question_id: int) -> None:

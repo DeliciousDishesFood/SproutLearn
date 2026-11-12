@@ -11,6 +11,7 @@ Difficulty = Literal["easy", "medium", "hard"]
 
 
 class QuestionUpdateRequest(BaseModel):
+    bank_id: int | None = Field(default=None, ge=1)
     type: QuestionType | None = None
     stem: str | None = None
     options: Any | None = None
@@ -41,6 +42,7 @@ class QuestionUpdateRequest(BaseModel):
 
 
 class QuestionQuery(BaseModel):
+    bank_id: int | None = Field(default=None, ge=1)
     type: QuestionType | None = None
     tag: str | None = None
     difficulty: Difficulty | None = None

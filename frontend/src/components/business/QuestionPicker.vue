@@ -1,9 +1,10 @@
-<!-- 选题器：固定组卷时按班级筛选题库，跨页保留已选题目并实时汇总题数。 -->
+<!-- 选题器：M3.1 支持按题库多选范围、整库加入或逐题勾选，跨页保留已选题目。 -->
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import {
   AlertCircle,
   Check,
+  FolderPlus,
   ListChecks,
   RefreshCw,
   Search,
@@ -25,6 +26,7 @@ import {
   QUESTION_TYPE_META,
 } from '@/utils/constants'
 import type {
+  QuestionBank,
   QuestionDifficulty,
   QuestionItem,
   QuestionType,
@@ -34,6 +36,7 @@ import type { SelectOption } from '@/types'
 const props = defineProps<{
   classId: number | null
   modelValue: number[]
+  banks: QuestionBank[]
 }>()
 
 const emit = defineEmits<{
@@ -63,6 +66,8 @@ const pageSize = ref(PAGE_SIZE)
 const loading = ref(false)
 const loadError = ref('')
 const chosen = ref<Map<number, QuestionItem>>(new Map())
+const selectedBankIds = ref<number[]>([])
+const bankAddingId = ref<number | null>(null)
 
 const typeFilter = ref('')
 const difficultyFilter = ref('')
@@ -80,6 +85,50 @@ const pageAllSelected = computed(
 const hasFilters = computed(
   () => Boolean(typeFilter.value || difficultyFilter.value || tagFilter.value || keyword.value),
 )
+const bankScopeCount = computed(() => {
+  const scoped = selectedBankIds.value.length
+    ? props.banks.filter((bank) => selectedBankIds.value.includes(bank.id))
+    : props.banks
+  return scoped.reduce((sum, bank) => sum + bank.question_count, 0)
+})
+/** 后端列表只支持单个 bank_id；多选时列全部题目，并在行内标注所属题库。 */
+const listBankId = computed(() =>
+  selectedBankIds.value.length === 1 ? selectedBankIds.value[0] : undefined,
+)
+
+function toggleBank(bankId: number): void {
+  const index = selectedBankIds.value.indexOf(bankId)
+  if (index >= 0) selectedBankIds.value = selectedBankIds.value.filter((id) => id !== bankId)
+  else selectedBankIds.value = [...selectedBankIds.value, bankId]
+  page.value = 1
+  void loadQuestions(1)
+}
+
+/** 整库加入：分页拉齐库内有效题后并入已选，保持旧 question_ids 组卷路径。 */
+async function addWholeBank(bank: QuestionBank): Promise<void> {
+  if (props.classId === null || bankAddingId.value !== null) return
+  bankAddingId.value = bank.id
+  try {
+    const next = new Map(chosen.value)
+    let nextPage = 1
+    const size = 50
+    while (nextPage <= 20) {
+      const result = await questionsApi.list(props.classId, {
+        bank_id: bank.id,
+        page: nextPage,
+        page_size: size,
+      })
+      for (const question of result.list) next.set(question.id, question)
+      if (result.list.length === 0 || nextPage * size >= result.total) break
+      nextPage += 1
+    }
+    emitSelected(next)
+  } catch (err) {
+    loadError.value = mapError(err)
+  } finally {
+    bankAddingId.value = null
+  }
+}
 
 function emitSelected(next: Map<number, QuestionItem>): void {
   chosen.value = next
@@ -129,6 +178,7 @@ async function loadQuestions(nextPage = page.value): Promise<void> {
   loadError.value = ''
   try {
     const result = await questionsApi.list(props.classId, {
+      bank_id: listBankId.value,
       type: typeFilter.value ? (typeFilter.value as QuestionType) : undefined,
       knowledge_tag: tagFilter.value.trim() || undefined,
       difficulty: difficultyFilter.value
@@ -188,6 +238,7 @@ watch(
     questions.value = []
     total.value = 0
     page.value = 1
+    selectedBankIds.value = []
     typeFilter.value = ''
     difficultyFilter.value = ''
     tagFilter.value = ''
@@ -226,6 +277,48 @@ watch(
         </AppButton>
       </div>
     </header>
+
+    <section v-if="props.banks.length > 0" class="bank-scope" aria-label="题库范围">
+      <div class="bank-scope__head">
+        <span class="bank-scope__title">题库范围</span>
+        <span class="muted text-xs">
+          可多选；仅选 1 个库时只列出该库题目，多选时列出全部题目并在行内标注所属库
+        </span>
+      </div>
+      <div class="bank-scope__chips">
+        <span
+          v-for="bank in props.banks"
+          :key="bank.id"
+          class="bank-chip"
+          :class="{ 'bank-chip--active': selectedBankIds.includes(bank.id) }"
+        >
+          <button class="bank-chip__toggle" type="button" @click="toggleBank(bank.id)">
+            <Check
+              v-if="selectedBankIds.includes(bank.id)"
+              :size="12"
+              :stroke-width="2.6"
+              aria-hidden="true"
+            />
+            <span class="truncate" :title="bank.name">{{ bank.name }}</span>
+            <span class="bank-chip__count tabular">{{ bank.question_count }}</span>
+          </button>
+          <button
+            class="bank-chip__add"
+            type="button"
+            :disabled="bankAddingId !== null || bank.question_count === 0"
+            :title="`把「${bank.name}」的 ${bank.question_count} 道题全部加入`"
+            @click="addWholeBank(bank)"
+          >
+            <FolderPlus :size="12" :stroke-width="1.9" />
+            {{ bankAddingId === bank.id ? '加入中…' : '整库加入' }}
+          </button>
+        </span>
+      </div>
+      <p class="bank-scope__summary">
+        共 <strong class="tabular">{{ bankScopeCount }}</strong> 题
+        <template v-if="selectedBankIds.length > 0"> · 已选 {{ selectedBankIds.length }} 个库</template>
+      </p>
+    </section>
 
     <section v-if="selectedItems.length > 0" class="picked" aria-label="已选题目">
       <div class="picked__head">
@@ -340,6 +433,7 @@ watch(
                   {{ DIFFICULTY_META[question.difficulty].label }}
                 </AppTag>
                 <AppTag tone="neutral">{{ question.knowledge_tag }}</AppTag>
+                <AppTag v-if="question.bank_name" tone="primary">{{ question.bank_name }}</AppTag>
                 <span class="bank-item__id mono">Q-{{ question.id }}</span>
               </span>
               <span class="bank-item__stem">{{ question.stem }}</span>
@@ -390,6 +484,105 @@ watch(
   gap: var(--sp-2);
 }
 
+.bank-scope {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-alt);
+}
+
+.bank-scope__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.bank-scope__title {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+.bank-scope__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+.bank-chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-xs);
+  background: var(--color-surface);
+  overflow: hidden;
+}
+
+.bank-chip--active {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+
+.bank-chip__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 220px;
+  padding: 5px var(--sp-2);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+
+.bank-chip__count {
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+
+.bank-chip--active .bank-chip__count {
+  color: var(--color-primary);
+}
+
+.bank-chip__add {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 5px var(--sp-2);
+  border: 0;
+  border-left: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.bank-chip__add:hover:not(:disabled) {
+  color: var(--color-primary);
+  background: var(--color-surface);
+}
+
+.bank-chip__add:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.bank-scope__summary {
+  color: var(--color-text-muted);
+  font-size: var(--fs-xs);
+}
+
+.bank-scope__summary strong {
+  color: var(--color-primary);
+}
+
 .picked {
   padding: var(--sp-3) var(--sp-4);
   border: 1px solid color-mix(in srgb, var(--color-primary) 24%, transparent);
@@ -410,7 +603,9 @@ watch(
   display: flex;
   flex-wrap: wrap;
   gap: var(--sp-2);
+  max-height: 118px;
   margin-top: var(--sp-2);
+  overflow-y: auto;
 }
 
 .picked__item {
