@@ -42,10 +42,21 @@ def _redis() -> redis.Redis:
     return get_redis_client()
 
 
-def issue_token(*, user_id: int, role: str, class_id: int | None) -> str:
+def issue_token(
+    *, user_id: int, role: str, class_id: int | None, auth_version: int = 1
+) -> str:
     """签发 JWT 并写入 Redis 会话（TTL = SESSION_IDLE_MINUTES）。"""
-    token, jti, _exp = create_access_token(user_id=user_id, role=role, class_id=class_id)
-    payload = json.dumps({"user_id": user_id, "role": role, "class_id": class_id})
+    token, jti, _exp = create_access_token(
+        user_id=user_id, role=role, class_id=class_id, auth_version=auth_version
+    )
+    payload = json.dumps(
+        {
+            "user_id": user_id,
+            "role": role,
+            "class_id": class_id,
+            "auth_version": int(auth_version),
+        }
+    )
     try:
         _redis().set(cache_keys.session_key(jti), payload, ex=_settings.session_idle_seconds)
     except redis.RedisError as exc:
@@ -107,19 +118,28 @@ def _login_teacher(db: Session, payload: LoginRequest) -> dict:
 
     if not verify_password(payload.password, teacher.password_hash) or teacher.status != 1:
         rate_limit.record_failure(fail_key, _settings.rate_limit_login)
+        if teacher.status != 1:
+            raise AppException(ErrorCode.ACCOUNT_DISABLED, "账号已停用")
         raise AppException(ErrorCode.BAD_CREDENTIALS, "账号或密码错误")
 
     rate_limit.clear_failure(fail_key)
     teacher.last_login_at = now()
     db.commit()
-    token = issue_token(user_id=teacher.id, role="teacher", class_id=None)
+    token = issue_token(
+        user_id=teacher.id,
+        role="teacher",
+        class_id=None,
+        auth_version=teacher.auth_version,
+    )
     return {
         "token": token,
+        "must_change_password": bool(teacher.must_change_password),
         "user": {
             "id": teacher.id,
             "role": "teacher",
             "name": teacher.name,
             "account": teacher.account,
+            "must_change_password": bool(teacher.must_change_password),
         },
     }
 
@@ -134,6 +154,8 @@ def _login_student(db: Session, payload: LoginRequest) -> dict:
         raise AppException(ErrorCode.RATE_LIMITED, "请求过于频繁，请稍后再试")
 
     klass = class_repo.get_by_code(class_code)
+    if klass is not None and klass.status != 1:
+        raise AppException(ErrorCode.CLASS_ARCHIVED, "班级已归档，暂停学生登录")
     student = None
     if klass is not None and klass.status == 1:
         student = student_repo.get_by_class_and_no(klass.id, student_no)
@@ -145,15 +167,23 @@ def _login_student(db: Session, payload: LoginRequest) -> dict:
 
     if not verify_password(payload.password, student.password_hash) or student.status != 1:
         rate_limit.record_failure(fail_key, _settings.rate_limit_login)
+        if student.status != 1:
+            raise AppException(ErrorCode.ACCOUNT_DISABLED, "账号已停用，请联系老师")
         raise AppException(ErrorCode.BAD_CREDENTIALS, "账号或密码错误")
 
     rate_limit.clear_failure(fail_key)
     student.last_login_at = now()
     growth_service.apply_login(db, student.id)
     db.commit()
-    token = issue_token(user_id=student.id, role="student", class_id=klass.id)
+    token = issue_token(
+        user_id=student.id,
+        role="student",
+        class_id=klass.id,
+        auth_version=student.auth_version,
+    )
     return {
         "token": token,
+        "must_change_password": bool(student.must_change_password),
         "user": {
             "id": student.id,
             "role": "student",
@@ -184,6 +214,7 @@ def current_user_info(db: Session, current: CurrentUser) -> dict:
             "name": teacher.name,
             "account": teacher.account,
             "created_at": fmt_dt(teacher.created_at),
+            "must_change_password": bool(teacher.must_change_password),
         }
 
     student = db.get(Student, current.user_id)
@@ -203,6 +234,7 @@ def current_user_info(db: Session, current: CurrentUser) -> dict:
         "student_no": student.student_no,
         "level": student.level,
         "xp_total": student.xp_total,
+        "must_change_password": bool(student.must_change_password),
         "qq_bound": binding is not None,
     }
 

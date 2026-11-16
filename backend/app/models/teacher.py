@@ -1,6 +1,6 @@
 """教师表模型（teacher）。"""
 
-from sqlalchemy import Column, DateTime, Index, String, UniqueConstraint
+from sqlalchemy import Column, DateTime, Index, Integer, String, UniqueConstraint
 
 from app.models.base import Base, TimestampMixin, pk_bigint, tinyint
 
@@ -20,4 +20,6 @@ class Teacher(Base, TimestampMixin):
     email = Column(String(120), nullable=True)
     phone = Column(String(20), nullable=True)
     status = Column(tinyint(), nullable=False, default=1, server_default="1")
+    auth_version = Column(Integer, nullable=False, default=1, server_default="1")
+    must_change_password = Column(tinyint(), nullable=False, default=0, server_default="0")
     last_login_at = Column(DateTime, nullable=True)

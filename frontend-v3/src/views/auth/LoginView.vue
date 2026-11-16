@@ -77,6 +77,10 @@ async function submit(): Promise<void> {
             password: studentForm.password,
           }
     await auth.login(payload)
+    if (auth.user?.must_change_password) {
+      await router.replace({ path: '/account/change-password', query: { forced: '1' } })
+      return
+    }
     const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : ''
     const expected = auth.isTeacher ? '/teacher' : '/student'
     const target = redirect.startsWith(expected) ? redirect : homePath()

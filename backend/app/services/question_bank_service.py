@@ -14,7 +14,7 @@ from app.exceptions import AppException, ErrorCode
 from app.models.question_bank import QuestionBank
 from app.repositories.question_bank_repo import QuestionBankRepository
 from app.schemas.question_bank import QuestionBankCreateRequest, QuestionBankUpdateRequest
-from app.services.class_service import require_owned_class
+from app.services.class_service import require_active_class, require_owned_class
 from app.utils.time import fmt_dt, now_naive
 
 
@@ -41,7 +41,7 @@ def list_banks(db: Session, current: CurrentUser, *, class_id: int) -> list[dict
 def create_bank(
     db: Session, current: CurrentUser, *, class_id: int, payload: QuestionBankCreateRequest
 ) -> dict[str, Any]:
-    require_owned_class(db, class_id, current.user_id)
+    require_active_class(db, class_id, current.user_id)
     repo = QuestionBankRepository(db)
     if repo.name_exists(class_id, payload.name):
         raise AppException(ErrorCode.QUESTION_BANK_NAME_EXISTS, "题库名称已存在")
@@ -74,7 +74,7 @@ def update_bank(
     bank = QuestionBankRepository(db).get_by_id(bank_id)
     if bank is None or bank.deleted_at is not None:
         raise AppException(ErrorCode.NOT_FOUND, "题库不存在")
-    require_owned_class(db, bank.class_id, current.user_id)
+    require_active_class(db, bank.class_id, current.user_id)
     repo = QuestionBankRepository(db)
     fields = payload.model_fields_set
     if "name" in fields and payload.name is not None and payload.name != bank.name:
@@ -99,7 +99,7 @@ def delete_bank(db: Session, current: CurrentUser, *, bank_id: int) -> None:
     bank = QuestionBankRepository(db).get_by_id(bank_id)
     if bank is None or bank.deleted_at is not None:
         raise AppException(ErrorCode.NOT_FOUND, "题库不存在")
-    require_owned_class(db, bank.class_id, current.user_id)
+    require_active_class(db, bank.class_id, current.user_id)
     repo = QuestionBankRepository(db)
     if repo.count_questions(bank.id) > 0:
         raise AppException(ErrorCode.QUESTION_BANK_NOT_EMPTY, "题库内仍有题目，禁止删除")

@@ -6,6 +6,7 @@ import type {
   ClassDetail,
   ClassListItem,
   ClassListQuery,
+  ClassStatusResult,
   InviteCodeInfo,
   JoinClassResult,
   Paged,
@@ -32,6 +33,18 @@ export const classesApi = {
 
   detail(classId: number): Promise<ClassDetail> {
     return api.get<ClassDetail>(`/classes/${classId}`)
+  },
+
+  archive(classId: number): Promise<ClassStatusResult> {
+    return api.post<ClassStatusResult>(`/classes/${classId}/archive`, undefined, {
+      skipGlobalError: true,
+    })
+  },
+
+  restore(classId: number): Promise<ClassStatusResult> {
+    return api.post<ClassStatusResult>(`/classes/${classId}/restore`, undefined, {
+      skipGlobalError: true,
+    })
   },
 
   inviteCode(classId: number): Promise<InviteCodeInfo> {

@@ -16,7 +16,7 @@ from app.models.knowledge_chunk import KnowledgeChunk
 from app.models.knowledge_doc import KnowledgeDoc
 from app.repositories.knowledge_chunk_repo import KnowledgeChunkRepository
 from app.repositories.knowledge_doc_repo import KnowledgeDocRepository
-from app.services.class_service import require_owned_class
+from app.services.class_service import require_active_class, require_owned_class
 from app.strategies.parser import NoTextLayer, ParserError, get_parser
 from app.strategies.storage import get_storage
 from app.utils.response import page_data
@@ -211,7 +211,7 @@ def upload_documents(
     files: list[FileItem],
 ) -> dict:
     """批量上传：返回 success_list / fail_list；全部失败也是 200。"""
-    klass = require_owned_class(db, class_id, current.user_id)
+    klass = require_active_class(db, class_id, current.user_id)
     settings = get_settings()
     effective_course = (course_name or "").strip() or klass.course_name
     if len(effective_course) > settings.text_field_max_len:
@@ -347,6 +347,7 @@ def list_chunks(
 
 def delete_document(db: Session, current: CurrentUser, doc_id: int) -> None:
     doc = _require_document(db, current, doc_id)
+    require_active_class(db, doc.class_id, current.user_id)
     relative_path = doc.file_path
     class_id = doc.class_id
     KnowledgeChunkRepository(db).delete_by_doc(doc.id, class_id)

@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import BaseBadge from '@/components/ui/BaseBadge.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
+import ChangePasswordForm from '@/components/business/ChangePasswordForm.vue'
 import { bindingApi } from '@/api/binding'
 import { toUserMessage } from '@/api/client'
 import type { QqBindCode } from '@/api/contract'
@@ -162,6 +163,11 @@ onBeforeUnmount(stopTimer)
       </template>
     </section>
   </div>
+
+  <section v-if="!loading" class="card stack" style="margin-top: 16px">
+    <header class="card__head"><h2>账号安全</h2></header>
+    <ChangePasswordForm />
+  </section>
 
   <ConfirmDialog
     :open="unbindOpen"

@@ -1,6 +1,7 @@
 """模型包：统一导入，保证 Base.metadata 包含 M1/M2/M3 全部业务表。"""
 
 from app.models.answer_record import AnswerRecord
+from app.models.account_audit_log import AccountAuditLog
 from app.models.attempt import Attempt
 from app.models.base import Base
 from app.models.bot_notice import BotNotice
@@ -31,6 +32,7 @@ from app.models.xp_limit_config import XpLimitConfig
 
 __all__ = [
     "Base",
+    "AccountAuditLog",
     "Teacher",
     "Class",
     "ClassBotConfig",

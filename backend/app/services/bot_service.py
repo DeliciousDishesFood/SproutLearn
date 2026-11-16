@@ -18,7 +18,7 @@ from app.deps import CurrentUser
 from app.exceptions import AppException, ErrorCode
 from app.models.class_bot_config import ClassBotConfig
 from app.schemas.bot import BotConfigUpdateRequest
-from app.services.class_service import require_owned_class
+from app.services.class_service import require_active_class, require_owned_class
 from app.services.qq_bot import client as qq_client
 from app.utils import cache_keys
 from app.utils.time import fmt_dt, now, now_naive
@@ -96,7 +96,7 @@ def save_config(
     class_id: int,
     payload: BotConfigUpdateRequest,
 ) -> dict[str, Any]:
-    require_owned_class(db, class_id, current.user_id)
+    require_active_class(db, class_id, current.user_id)
     config = db.query(ClassBotConfig).filter(ClassBotConfig.class_id == class_id).one_or_none()
     if config is None:
         config = ClassBotConfig(
@@ -140,7 +140,7 @@ def save_config(
 
 
 def test_config(db: Session, current: CurrentUser, *, class_id: int) -> dict[str, Any]:
-    require_owned_class(db, class_id, current.user_id)
+    require_active_class(db, class_id, current.user_id)
     config = db.query(ClassBotConfig).filter(ClassBotConfig.class_id == class_id).one_or_none()
     if config is None:
         raise AppException(ErrorCode.VALIDATION_ERROR, "请先保存机器人配置")
@@ -193,7 +193,7 @@ def test_config(db: Session, current: CurrentUser, *, class_id: int) -> dict[str
 def generate_group_code(
     db: Session, current: CurrentUser, *, class_id: int
 ) -> dict[str, Any]:
-    require_owned_class(db, class_id, current.user_id)
+    require_active_class(db, class_id, current.user_id)
     ttl = 600
     try:
         client = _redis()

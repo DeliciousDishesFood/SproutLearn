@@ -1,6 +1,6 @@
 """学生表模型（student）：班内学号唯一，跨班可重复。"""
 
-from sqlalchemy import Column, Date, DateTime, ForeignKey, Index, String, UniqueConstraint
+from sqlalchemy import Column, Date, DateTime, ForeignKey, Index, Integer, String, UniqueConstraint
 
 from app.models.base import Base, TimestampMixin, bigint_unsigned, int_unsigned, pk_bigint, smallint_unsigned, tinyint, tinyint_unsigned
 
@@ -22,6 +22,8 @@ class Student(Base, TimestampMixin):
     xp_total = Column(int_unsigned(), nullable=False, default=0, server_default="0")
     level = Column(tinyint_unsigned(), nullable=False, default=1, server_default="1")
     status = Column(tinyint(), nullable=False, default=1, server_default="1")
+    auth_version = Column(Integer, nullable=False, default=1, server_default="1")
+    must_change_password = Column(tinyint(), nullable=False, default=0, server_default="0")
     last_login_at = Column(DateTime, nullable=True)
     streak_days = Column(smallint_unsigned(), nullable=False, default=0, server_default="0")
     last_login_date = Column(Date, nullable=True)

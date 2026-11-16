@@ -15,6 +15,8 @@ CREATE TABLE IF NOT EXISTS `teacher` (
   `email` VARCHAR(120) DEFAULT NULL,
   `phone` VARCHAR(20) DEFAULT NULL,
   `status` TINYINT NOT NULL DEFAULT 1 COMMENT '1 正常 / 0 禁用',
+  `auth_version` INT NOT NULL DEFAULT 1 COMMENT '会话版本',
+  `must_change_password` TINYINT NOT NULL DEFAULT 0 COMMENT '1 强制改密',
   `last_login_at` DATETIME DEFAULT NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -97,6 +99,8 @@ CREATE TABLE IF NOT EXISTS `student` (
   `xp_total` INT UNSIGNED NOT NULL DEFAULT 0,
   `level` TINYINT UNSIGNED NOT NULL DEFAULT 1,
   `status` TINYINT NOT NULL DEFAULT 1 COMMENT '1 正常 / 0 禁用',
+  `auth_version` INT NOT NULL DEFAULT 1 COMMENT '会话版本',
+  `must_change_password` TINYINT NOT NULL DEFAULT 0 COMMENT '1 强制改密',
   `last_login_at` DATETIME DEFAULT NULL,
   `streak_days` SMALLINT UNSIGNED NOT NULL DEFAULT 0,
   `last_login_date` DATE DEFAULT NULL,
@@ -451,5 +455,23 @@ CREATE TABLE IF NOT EXISTS `review` (
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='教师复核留痕';
+
+
+-- v1.4 最小账号/班级操作记录（不含密码/hash/token）
+CREATE TABLE IF NOT EXISTS `account_audit_log` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `actor_role` VARCHAR(8) NOT NULL,
+  `actor_id` BIGINT UNSIGNED NOT NULL,
+  `target_role` VARCHAR(8) NOT NULL,
+  `target_id` BIGINT UNSIGNED NOT NULL,
+  `class_id` BIGINT UNSIGNED DEFAULT NULL,
+  `action` VARCHAR(32) NOT NULL,
+  `result` VARCHAR(16) NOT NULL,
+  `request_id` VARCHAR(64) DEFAULT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_audit_actor` (`actor_role`, `actor_id`, `created_at`),
+  KEY `idx_audit_target` (`target_role`, `target_id`, `created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='账号班级操作记录';
 
 SET FOREIGN_KEY_CHECKS = 1;

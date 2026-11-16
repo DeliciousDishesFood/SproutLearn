@@ -1,50 +1,81 @@
 <script setup lang="ts">
 import { Users } from 'lucide-vue-next'
 import type { ClassListItem } from '@/api/contract'
+import BaseBadge from '@/components/ui/BaseBadge.vue'
+import BaseButton from '@/components/ui/BaseButton.vue'
 import { formatDate } from '@/utils/format'
 
-defineProps<{ item: ClassListItem }>()
+const props = defineProps<{ item: ClassListItem }>()
+
+const emit = defineEmits<{ (event: 'toggle-archive', item: ClassListItem): void }>()
 </script>
 
 <template>
-  <RouterLink class="card class-card" :to="`/teacher/classes/${item.id}`">
-    <header class="class-card__head">
-      <div>
-        <h2>{{ item.class_name }}</h2>
-        <p class="small muted">{{ item.course_name }} · {{ item.class_code }}</p>
+  <div class="card class-card" :class="{ 'class-card--archived': props.item.status === 0 }">
+    <RouterLink class="class-card__body" :to="`/teacher/classes/${item.id}`">
+      <header class="class-card__head">
+        <div>
+          <h2>{{ item.class_name }}</h2>
+          <p class="small muted">{{ item.course_name }} · {{ item.class_code }}</p>
+        </div>
+        <div class="class-card__marks">
+          <BaseBadge v-if="item.status === 0" tone="plain">已归档</BaseBadge>
+          <span class="class-card__mark" aria-hidden="true"><Users :size="16" /></span>
+        </div>
+      </header>
+      <div class="class-card__stats">
+        <div>
+          <strong>{{ item.student_count }}</strong>
+          <span>学生</span>
+        </div>
+        <div>
+          <strong>{{ item.doc_count }}</strong>
+          <span>资料</span>
+        </div>
+        <div>
+          <strong>{{ formatDate(item.created_at) }}</strong>
+          <span>创建</span>
+        </div>
       </div>
-      <span class="class-card__mark" aria-hidden="true"><Users :size="16" /></span>
-    </header>
-    <div class="class-card__stats">
-      <div>
-        <strong>{{ item.student_count }}</strong>
-        <span>学生</span>
-      </div>
-      <div>
-        <strong>{{ item.doc_count }}</strong>
-        <span>资料</span>
-      </div>
-      <div>
-        <strong>{{ formatDate(item.created_at) }}</strong>
-        <span>创建</span>
-      </div>
-    </div>
-  </RouterLink>
+    </RouterLink>
+    <footer class="class-card__foot" @click.stop>
+      <BaseButton
+        size="sm"
+        :variant="item.status === 0 ? 'primary' : 'danger'"
+        @click="emit('toggle-archive', item)"
+      >
+        {{ item.status === 0 ? '恢复班级' : '归档班级' }}
+      </BaseButton>
+    </footer>
+  </div>
 </template>
 
 <style scoped>
 .class-card {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  color: inherit;
-  text-decoration: none;
+  gap: 12px;
   transition: box-shadow 140ms ease, border-color 140ms ease;
 }
 
 .class-card:hover {
   border-color: var(--line-strong);
   box-shadow: 0 2px 10px rgba(16, 24, 40, 0.06);
+}
+
+.class-card--archived {
+  background: var(--surface-alt);
+}
+
+.class-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.class-card__body:hover {
   text-decoration: none;
 }
 
@@ -58,6 +89,13 @@ defineProps<{ item: ClassListItem }>()
 .class-card__head h2 {
   font-size: 15px;
   font-weight: 600;
+}
+
+.class-card__marks {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
 }
 
 .class-card__mark {
@@ -96,5 +134,10 @@ defineProps<{ item: ClassListItem }>()
 .class-card__stats span {
   color: var(--text-3);
   font-size: 11.5px;
+}
+
+.class-card__foot {
+  display: flex;
+  justify-content: flex-end;
 }
 </style>

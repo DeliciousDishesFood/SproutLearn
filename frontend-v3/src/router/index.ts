@@ -7,7 +7,7 @@ import AppShell from '@/layouts/AppShell.vue'
 
 declare module 'vue-router' {
   interface RouteMeta {
-    role?: 'teacher' | 'student' | 'public'
+    role?: 'teacher' | 'student' | 'public' | 'any'
     title?: string
   }
 }
@@ -33,6 +33,13 @@ const router = createRouter({
       name: 'join',
       component: () => import('@/views/auth/JoinClassView.vue'),
       meta: { role: 'public', title: '加入班级' },
+    },
+    {
+      // 强制改密独立于业务外壳，避免从侧栏绕过。
+      path: '/account/change-password',
+      name: 'account-change-password',
+      component: () => import('@/views/auth/ForcePasswordChangeView.vue'),
+      meta: { role: 'any', title: '修改密码' },
     },
     {
       path: '/',
@@ -146,6 +153,12 @@ const router = createRouter({
           component: () => import('@/views/teacher/ClassSettingsView.vue'),
           meta: { title: '班级设置' },
         },
+        {
+          path: 'settings',
+          name: 'teacher-account',
+          component: () => import('@/views/teacher/SettingsView.vue'),
+          meta: { title: '账号设置' },
+        },
       ],
     },
     {
@@ -233,6 +246,10 @@ router.beforeEach(async (to) => {
       }
       // 网络或后端异常不清会话，交给页面展示错误与重试。
     }
+  }
+  // 后端要求改密时只允许进入强制改密页；不能用前端 flag 自行解除。
+  if (auth.user?.must_change_password && to.name !== 'account-change-password') {
+    return { path: '/account/change-password', query: { forced: '1' } }
   }
   if (to.meta.role === 'teacher' && !auth.isTeacher) return { path: '/student' }
   if (to.meta.role === 'student' && !auth.isStudent) return { path: '/teacher' }

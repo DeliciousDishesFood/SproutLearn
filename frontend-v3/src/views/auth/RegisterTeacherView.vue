@@ -7,6 +7,7 @@ import BaseField from '@/components/ui/BaseField.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import { useAuthStore } from '@/stores/auth'
 import { toUserMessage } from '@/api/client'
+import { PASSWORD_RULE_TEXT, validatePassword } from '@/utils/password'
 import { useToast } from '@/composables/useToast'
 
 const auth = useAuthStore()
@@ -23,8 +24,9 @@ async function submit(): Promise<void> {
     errorText.value = '账号、姓名和密码为必填项'
     return
   }
-  if (form.password.length < 6) {
-    errorText.value = '密码至少 6 位'
+  const passwordError = validatePassword(form.password)
+  if (passwordError) {
+    errorText.value = passwordError
     return
   }
   loading.value = true
@@ -81,7 +83,7 @@ async function submit(): Promise<void> {
               <input v-model="form.name" type="text" autocomplete="name" placeholder="真实姓名" />
             </BaseField>
           </div>
-          <BaseField label="密码" hint="至少 6 位">
+          <BaseField label="密码" :hint="PASSWORD_RULE_TEXT">
             <input v-model="form.password" type="password" autocomplete="new-password" placeholder="设置登录密码" />
           </BaseField>
           <div class="form-row">

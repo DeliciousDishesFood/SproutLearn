@@ -6,6 +6,7 @@ import {
   API_BASE_URL,
   ERROR_CODE,
   ERROR_MESSAGES,
+  PASSWORD_CHANGE_REQUIRED_EVENT,
   SESSION_EXPIRED_EVENT,
   STORAGE_KEYS,
 } from '@/utils/constants'
@@ -45,6 +46,8 @@ export class ApiError extends Error {
   }
 
   get friendlyMessage(): string {
+    // 40001 优先展示后端的具体字段错误（如密码规则），其余错误码用统一映射兜底。
+    if (this.code === ERROR_CODE.VALIDATION && this.message) return this.message
     return ERROR_MESSAGES[this.code] ?? this.message ?? '请求未能完成，请重试'
   }
 }
@@ -94,6 +97,11 @@ function notifyToast(message: string, type: 'error' | 'success' | 'info' | 'warn
 function handleApiError(apiError: ApiError, config?: AxiosRequestConfig): void {
   const skipGlobalError = config?.skipGlobalError === true
   const skipAuthRedirect = config?.skipAuthRedirect === true
+  // 40303 不是会话失效：保留 token，统一交给 main.ts 跳强制改密页。
+  if (apiError.code === ERROR_CODE.PASSWORD_CHANGE_REQUIRED && !skipAuthRedirect) {
+    window.dispatchEvent(new CustomEvent(PASSWORD_CHANGE_REQUIRED_EVENT))
+    return
+  }
   if (isSessionCode(apiError.code) && !skipAuthRedirect) {
     clearSession()
     notifySessionExpired(apiError.friendlyMessage)

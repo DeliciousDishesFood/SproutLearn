@@ -12,7 +12,7 @@ from app.config import get_settings
 from app.deps import CurrentUser
 from app.exceptions import AppException, ErrorCode
 from app.services import question_bank_service
-from app.services.class_service import require_owned_class
+from app.services.class_service import require_active_class
 from app.services.llm.router import build_router
 from app.services.question_import import normalize_item, store_preview
 from app.services.question_import_text import extract_text
@@ -137,7 +137,7 @@ def ai_preview(
     bank_id: int | None = None,
     max_questions: int = 50,
 ) -> dict[str, Any]:
-    require_owned_class(db, class_id, current.user_id)
+    require_active_class(db, class_id, current.user_id)
     if not content:
         raise AppException(ErrorCode.IMPORT_FORMAT_ERROR, "上传文件为空")
     if len(content) > MAX_FILE_BYTES:

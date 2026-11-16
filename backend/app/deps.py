@@ -10,10 +10,14 @@ import redis
 from fastapi import Depends, Header, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from loguru import logger
+from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.database import get_db
 from app.exceptions import ErrorCode, AppException
+from app.models.class_ import Class
+from app.models.student import Student
+from app.models.teacher import Teacher
 from app.redis_client import get_redis_client
 from app.utils import cache_keys
 from app.utils.security import (
@@ -23,6 +27,11 @@ from app.utils.security import (
 )
 
 _bearer = HTTPBearer(auto_error=False)
+ALLOWED_WHEN_PASSWORD_CHANGE = {
+    "/api/v1/auth/me",
+    "/api/v1/auth/password/change",
+    "/api/v1/auth/logout",
+}
 
 
 @dataclass
@@ -34,6 +43,9 @@ class CurrentUser:
     class_id: int | None
     jti: str
     exp: int
+    auth_version: int = 1
+    must_change_password: bool = False
+    class_status: int = 1
 
 
 def _redis_error(exc: Exception) -> AppException:
@@ -44,8 +56,9 @@ def _redis_error(exc: Exception) -> AppException:
 def get_current_user(
     request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
+    db: Session = Depends(get_db),
 ) -> CurrentUser:
-    """校验 Bearer token：签名/过期 → 黑名单 → Redis 会话 → 滑动续期。"""
+    """签名/黑名单/Redis 会话 → 数据库 auth_version/status/强制改密。"""
     if credentials is None or not credentials.credentials:
         raise AppException(ErrorCode.UNAUTHORIZED, "未登录")
 
@@ -85,7 +98,32 @@ def get_current_user(
         class_id=session.get("class_id"),
         jti=jti,
         exp=int(payload.get("exp", 0)),
+        auth_version=int(payload.get("auth_version", 0) or 0),
     )
+
+    # Redis 只是缓存；数据库的版本/状态是最终依据
+    user = (
+        db.get(Teacher, current.user_id)
+        if current.role == "teacher"
+        else db.get(Student, current.user_id)
+    )
+    if user is None or getattr(user, "status", 0) != 1:
+        raise AppException(ErrorCode.ACCOUNT_DISABLED, "账号已停用，请联系老师或管理员")
+    db_version = int(getattr(user, "auth_version", 1) or 1)
+    session_version = int(session.get("auth_version", 0) or 0)
+    if current.auth_version != db_version or session_version != db_version:
+        raise AppException(ErrorCode.SESSION_EXPIRED, "登录已失效，请重新登录")
+    current.auth_version = db_version
+    current.must_change_password = bool(getattr(user, "must_change_password", 0))
+    if current.role == "student" and current.class_id:
+        klass = db.get(Class, current.class_id)
+        current.class_status = int(klass.status) if klass else 0
+    if current.must_change_password and request.url.path not in ALLOWED_WHEN_PASSWORD_CHANGE:
+        raise AppException(
+            ErrorCode.PASSWORD_CHANGE_REQUIRED,
+            "首次登录或密码已被重置，请先修改密码",
+        )
+
     request.state.user_id = current.user_id
     request.state.class_id = current.class_id
     return current

@@ -48,7 +48,9 @@ def burn_password_check(password: str) -> None:
     bcrypt.checkpw(password.encode("utf-8"), _dummy_hash)
 
 
-def create_access_token(*, user_id: int, role: str, class_id: int | None) -> tuple[str, str, int]:
+def create_access_token(
+    *, user_id: int, role: str, class_id: int | None, auth_version: int = 1
+) -> tuple[str, str, int]:
     """签发 JWT，返回 (token, jti, exp)。payload 字段严格按契约 §4.4。"""
     settings = get_settings()
     jti = uuid4().hex
@@ -58,6 +60,7 @@ def create_access_token(*, user_id: int, role: str, class_id: int | None) -> tup
         "sub": str(user_id),
         "role": role,
         "class_id": class_id,
+        "auth_version": int(auth_version),
         "iat": iat,
         "exp": exp,
         "jti": jti,

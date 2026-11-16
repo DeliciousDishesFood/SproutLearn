@@ -91,6 +91,10 @@ class Settings(BaseSettings):
     rate_limit_join: str
     rate_limit_invite_reset: str
     rate_limit_upload: str
+    password_change_max_failures: int = 5
+    password_change_window_seconds: int = 900
+    password_reset_student_hourly: int = 5
+    password_reset_teacher_daily: int = 30
 
     # ---------- 机器人（M2+ 回调鉴权；M3.4 官方机器人配置） ----------
     bot_shared_secret: str = ""

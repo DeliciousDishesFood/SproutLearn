@@ -10,8 +10,8 @@ from app.deps import CurrentUser, get_current_user, get_token_claims_optional
 from app.database import get_db
 from app.middleware import rate_limit
 from app.middleware.rate_limit import client_ip
-from app.schemas.auth import LoginRequest, TeacherRegisterRequest
-from app.services import auth_service
+from app.schemas.auth import LoginRequest, PasswordChangeRequest, TeacherRegisterRequest
+from app.services import auth_service, password_service
 from app.utils import cache_keys
 from app.utils.response import success
 
@@ -42,6 +42,20 @@ def logout(payload: dict | None = Depends(get_token_claims_optional)):
     """API-03 登出：合法 token 删会话/写黑名单；无 token/坏 token/重复也 200。"""
     if payload:
         auth_service.logout_claims(payload)
+    return success(None)
+
+
+@router.post("/password/change")
+def change_password(
+    payload: PasswordChangeRequest,
+    request: Request,
+    current: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """v1.4 自助改密：校验当前密码；成功后 auth_version+1，旧 token 全部失效。"""
+    password_service.change_password(
+        db, current, payload, request_id=getattr(request.state, "request_id", None)
+    )
     return success(None)
 
 

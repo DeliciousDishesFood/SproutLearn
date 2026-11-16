@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, field_validator
 
 from app.config import get_settings
@@ -21,3 +23,7 @@ class ClassCreateRequest(BaseModel):
     @classmethod
     def _course_name(cls, value: str) -> str:
         return validate_text_field(value, "课程名称", get_settings().text_field_max_len)
+
+
+class StudentStatusRequest(BaseModel):
+    status: Literal[0, 1]

@@ -22,7 +22,7 @@ from app.repositories.question_bank_repo import QuestionBankRepository
 from app.schemas.question import QuestionUpdateRequest
 from app.services import question_bank_service
 from app.services import question_ai_import
-from app.services.class_service import require_owned_class
+from app.services.class_service import require_active_class, require_owned_class
 from app.services.question_import import (
     clear_preview,
     commit_questions,
@@ -69,7 +69,7 @@ def preview_import(
     filename: str,
     bank_id: int | None = None,
 ) -> dict[str, Any]:
-    require_owned_class(db, class_id, current.user_id)
+    require_active_class(db, class_id, current.user_id)
     bank = (
         question_bank_service.resolve_bank(db, class_id=class_id, bank_id=bank_id)
         if bank_id is not None
@@ -142,7 +142,7 @@ def commit_import(
     rows: list[Any] | None = None,
     bank_id: int | None = None,
 ) -> dict[str, Any]:
-    require_owned_class(db, class_id, current.user_id)
+    require_active_class(db, class_id, current.user_id)
     errors: list[dict[str, Any]] = []
     items: list[dict[str, Any]] = []
     payload: dict[str, Any] = {}
@@ -267,7 +267,7 @@ def update_question(
     question = repo.get_by_id(question_id)
     if question is None or question.deleted_at is not None:
         raise AppException(ErrorCode.NOT_FOUND, "题目不存在")
-    require_owned_class(db, question.class_id, current.user_id)
+    require_active_class(db, question.class_id, current.user_id)
     fields = payload.model_fields_set
     if repo.published_reference(question_id, include_closed=False) and not fields.issubset({"analysis"}):
         raise AppException(ErrorCode.PAPER_PUBLISHED_FORBIDDEN, "已发布试卷引用的题目只允许修改解析")
@@ -304,7 +304,7 @@ def delete_question(db: Session, current: CurrentUser, *, question_id: int) -> N
     question = repo.get_by_id(question_id)
     if question is None or question.deleted_at is not None:
         raise AppException(ErrorCode.NOT_FOUND, "题目不存在")
-    require_owned_class(db, question.class_id, current.user_id)
+    require_active_class(db, question.class_id, current.user_id)
     if repo.published_reference(question_id):
         raise AppException(ErrorCode.PAPER_PUBLISHED_FORBIDDEN, "已发布试卷引用的题目不能删除")
     question.deleted_at = now_naive()

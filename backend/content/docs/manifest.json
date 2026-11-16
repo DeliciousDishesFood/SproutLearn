@@ -3,18 +3,27 @@
     "slug": "qq-bot-setup",
     "title": "QQ 机器人配置",
     "summary": "在 QQ 开放平台申请机器人，并在班级设置中填写 AppID、AppSecret、回调地址和启用状态。",
-    "updated_at": "2026-11-12"
+    "updated_at": "2026-11-12",
+    "roles": [
+      "teacher"
+    ]
   },
   {
     "slug": "question-import",
     "title": "题库导入",
     "summary": "使用 JSON、XLSX、XLS 或 CSV 批量导入题目，先预览校验，再提交入库。",
-    "updated_at": "2026-11-12"
+    "updated_at": "2026-11-12",
+    "roles": [
+      "teacher"
+    ]
   },
   {
     "slug": "grading-review",
     "title": "判分与复核",
     "summary": "了解客观题自动判分、主观题待复核、教师复核和成绩保留规则。",
-    "updated_at": "2026-11-12"
+    "updated_at": "2026-11-12",
+    "roles": [
+      "teacher"
+    ]
   }
 ]

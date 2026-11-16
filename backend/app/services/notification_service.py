@@ -9,9 +9,10 @@ from sqlalchemy.orm import Session
 
 from app.deps import CurrentUser
 from app.exceptions import AppException, ErrorCode
+from app.models.class_ import Class
 from app.models.notification import Notification
 from app.models.student import Student
-from app.services.class_service import require_owned_class
+from app.services.class_service import require_active_class
 from app.utils.response import page_data
 from app.utils.time import fmt_dt, now_naive
 
@@ -54,6 +55,9 @@ def add_for_class(
     target_path: str | None = None,
     payload: dict[str, Any] | None = None,
 ) -> int:
+    klass = db.get(Class, class_id)
+    if klass is None or klass.status != 1:
+        return 0
     students = (
         db.query(Student)
         .filter(Student.class_id == class_id, Student.status == 1)
@@ -176,7 +180,7 @@ def mark_all_read(db: Session, current: CurrentUser) -> int:
 def announce(
     db: Session, current: CurrentUser, *, class_id: int, title: str, body: str
 ) -> dict[str, Any]:
-    require_owned_class(db, class_id, current.user_id)
+    require_active_class(db, class_id, current.user_id)
     count = add_for_class(
         db,
         class_id=class_id,

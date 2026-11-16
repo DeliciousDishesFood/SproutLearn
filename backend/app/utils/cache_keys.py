@@ -20,6 +20,9 @@ ASK_SPROUT_COOLDOWN = "ask:sprout:cooldown:{student_id}"
 ASK_SPROUT_DAILY = "ask:sprout:daily:{student_id}:{date}"
 AI_IMPORT_DAILY = "rate:ai_import:{teacher_id}:{date}"
 AI_IMPORT_MINUTE = "rate:ai_import:minute:{teacher_id}:{minute}"
+PASSWORD_CHANGE_FAIL = "password:change:fail:{role}:{user_id}"
+PASSWORD_RESET_STUDENT = "password:reset:student:{student_id}:{hour}"
+PASSWORD_RESET_TEACHER = "password:reset:teacher:{teacher_id}:{day}"
 
 
 def session_key(jti: str) -> str:
@@ -101,3 +104,15 @@ def ai_import_daily_key(teacher_id: int, day: str) -> str:
 
 def ai_import_minute_key(teacher_id: int, minute: str) -> str:
     return AI_IMPORT_MINUTE.format(teacher_id=teacher_id, minute=minute)
+
+
+def password_change_fail_key(role: str, user_id: int) -> str:
+    return PASSWORD_CHANGE_FAIL.format(role=role, user_id=user_id)
+
+
+def password_reset_student_key(student_id: int, hour: str) -> str:
+    return PASSWORD_RESET_STUDENT.format(student_id=student_id, hour=hour)
+
+
+def password_reset_teacher_key(teacher_id: int, day: str) -> str:
+    return PASSWORD_RESET_TEACHER.format(teacher_id=teacher_id, day=day)

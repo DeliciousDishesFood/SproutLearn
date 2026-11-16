@@ -391,6 +391,23 @@ def handle_event(db: Session, event: dict[str, Any]) -> dict[str, Any] | None:
     arg = arg.strip()
     config = _context_config(db, group_openid=group_openid, openid=openid)
     is_teacher = bool(config and config.teacher_openid == openid)
+    binding = _binding(db, openid)
+    if binding is not None:
+        student = db.get(Student, binding.student_id)
+        if student is None or student.status != 1:
+            return _reply(
+                "账号已停用，暂时不能使用机器人查询。",
+                group_openid=group_openid,
+                user_openid=openid,
+            )
+    class_id = config.class_id if config else (binding.class_id if binding else None)
+    klass = db.get(Class, class_id) if class_id else None
+    if klass is not None and klass.status != 1 and command != "帮助":
+        return _reply(
+            "班级已归档，暂时不能使用作业/成绩/催交/通知与 AI 功能。",
+            group_openid=group_openid,
+            user_openid=openid,
+        )
 
     if command == "帮助":
         return _reply(

@@ -77,6 +77,16 @@ class LoginRequest(BaseModel):
         return self
 
 
+class PasswordChangeRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+    @field_validator("current_password", "new_password")
+    @classmethod
+    def _password(cls, value: str) -> str:
+        return validate_password(value)
+
+
 class StudentJoinRequest(BaseModel):
     invite_code: str
     student_no: str

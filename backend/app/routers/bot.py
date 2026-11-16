@@ -68,10 +68,10 @@ def group_bind_code(
 @router.get("/docs")
 def list_docs(current: CurrentUser = Depends(get_current_user)):
     """M3.3-04 文档清单。"""
-    return success(doc_service.list_docs())
+    return success(doc_service.list_docs(current.role))
 
 
 @router.get("/docs/{slug}")
 def get_doc(slug: str, current: CurrentUser = Depends(get_current_user)):
     """M3.3-05 文档详情；不存在 40401。"""
-    return success(doc_service.get_doc(slug))
+    return success(doc_service.get_doc(slug, current.role))

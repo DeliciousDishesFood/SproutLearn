@@ -149,20 +149,20 @@ def test_bot_permissions(client, teacher_token, klass, student):
     assert cross.json()["code"] == 40302
 
 
-def test_docs_list_detail_and_404(client, student):
-    listed = client.get("/api/v1/docs", headers=auth(student["token"]))
+def test_docs_list_detail_and_404(client, teacher_token):
+    listed = client.get("/api/v1/docs", headers=auth(teacher_token))
     assert listed.status_code == 200
     docs = listed.json()["data"]
     assert len(docs) >= 3
     assert {item["slug"] for item in docs} >= {"qq-bot-setup", "question-import", "grading-review"}
 
-    detail = client.get("/api/v1/docs/qq-bot-setup", headers=auth(student["token"]))
+    detail = client.get("/api/v1/docs/qq-bot-setup", headers=auth(teacher_token))
     assert detail.status_code == 200
     data = detail.json()["data"]
     assert data["title"] == "QQ 机器人配置"
     assert "QQ 开放平台" in data["content"]
     assert "<script" not in data["content"].lower()
 
-    missing = client.get("/api/v1/docs/no-such-doc", headers=auth(student["token"]))
+    missing = client.get("/api/v1/docs/no-such-doc", headers=auth(teacher_token))
     assert missing.status_code == 404
     assert missing.json()["code"] == 40401

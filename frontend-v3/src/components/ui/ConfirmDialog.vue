@@ -10,6 +10,7 @@ const props = withDefaults(
     title: string
     message: string
     target?: string
+    error?: string
     confirmLabel?: string
     cancelLabel?: string
     tone?: 'danger' | 'primary'
@@ -17,6 +18,7 @@ const props = withDefaults(
   }>(),
   {
     target: '',
+    error: '',
     confirmLabel: '确认',
     cancelLabel: '取消',
     tone: 'primary',
@@ -34,6 +36,7 @@ const confirmVariant = computed(() => (props.tone === 'danger' ? 'danger' : 'pri
     <div class="confirm">
       <p v-if="target" class="confirm__target">{{ target }}</p>
       <p class="confirm__message">{{ message }}</p>
+      <p v-if="error" class="confirm__error" role="alert">{{ error }}</p>
     </div>
     <template #footer>
       <BaseButton :disabled="loading" @click="emit('cancel')">{{ cancelLabel }}</BaseButton>
@@ -62,5 +65,12 @@ const confirmVariant = computed(() => (props.tone === 'danger' ? 'danger' : 'pri
   color: var(--muted);
   font-size: 13px;
   line-height: 1.6;
+}
+
+.confirm__error {
+  color: var(--danger-text, #b42318);
+  font-size: 12.5px;
+  line-height: 1.5;
+  word-break: break-word;
 }
 </style>

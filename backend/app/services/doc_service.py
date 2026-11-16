@@ -29,9 +29,18 @@ def _entry(slug: str) -> dict[str, Any] | None:
     return None
 
 
-def list_docs() -> list[dict[str, Any]]:
+def _roles(entry: dict[str, Any]) -> list[str]:
+    roles = entry.get("roles")
+    if not isinstance(roles, list) or not roles:
+        return ["teacher", "student"]
+    return [str(role) for role in roles]
+
+
+def list_docs(role: str = "student") -> list[dict[str, Any]]:
     items: list[dict[str, Any]] = []
     for item in _load_manifest():
+        if role not in _roles(item):
+            continue
         slug = str(item["slug"])
         if not SLUG_RE.match(slug):
             continue
@@ -49,11 +58,11 @@ def list_docs() -> list[dict[str, Any]]:
     return items
 
 
-def get_doc(slug: str) -> dict[str, Any]:
+def get_doc(slug: str, role: str = "student") -> dict[str, Any]:
     if not SLUG_RE.match(slug):
         raise AppException(ErrorCode.NOT_FOUND, "文档不存在")
     entry = _entry(slug)
-    if entry is None:
+    if entry is None or role not in _roles(entry):
         raise AppException(ErrorCode.NOT_FOUND, "文档不存在")
     path = (DOCS_DIR / f"{slug}.md").resolve()
     if DOCS_DIR.resolve() not in path.parents or not path.is_file():

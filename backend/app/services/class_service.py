@@ -22,6 +22,7 @@ from app.schemas.auth import StudentJoinRequest
 from app.schemas.class_ import ClassCreateRequest
 from app.services.auth_service import issue_token
 from app.services.code_service import generate_class_code, generate_invite_code
+from app.services.audit_service import write_audit
 from app.utils.response import page_data
 from app.utils.security import hash_password
 from app.utils.time import fmt_dt, now_naive
@@ -37,6 +38,14 @@ def require_owned_class(db: Session, class_id: int, teacher_id: int) -> Class:
         raise AppException(ErrorCode.NOT_FOUND, "班级不存在")
     if klass.teacher_id != teacher_id:
         raise AppException(ErrorCode.CLASS_FORBIDDEN, "无权访问该班级资源")
+    return klass
+
+
+def require_active_class(db: Session, class_id: int, teacher_id: int) -> Class:
+    """写操作统一守卫：非本班 40302，已归档 40305。"""
+    klass = require_owned_class(db, class_id, teacher_id)
+    if klass.status != 1:
+        raise AppException(ErrorCode.CLASS_ARCHIVED, "班级已归档，暂时不能执行该操作")
     return klass
 
 
@@ -134,6 +143,7 @@ def get_class_detail(db: Session, current: CurrentUser, class_id: int) -> dict:
         "student_count": student_count,
         "doc_count": doc_count,
         "invite_code": invite.code if invite else None,
+        "status": klass.status,
         "created_at": fmt_dt(klass.created_at),
     }
 
@@ -166,6 +176,8 @@ def reset_invite_code(db: Session, current: CurrentUser, class_id: int) -> dict:
                 raise AppException(ErrorCode.NOT_FOUND, "班级不存在")
             if klass.teacher_id != current.user_id:
                 raise AppException(ErrorCode.CLASS_FORBIDDEN, "无权访问该班级资源")
+            if klass.status != 1:
+                raise AppException(ErrorCode.CLASS_ARCHIVED, "班级已归档，暂时不能重置邀请码")
             invite_repo.deactivate_all(class_id)
             invite = ClassInvite(
                 class_id=class_id,
@@ -204,8 +216,10 @@ def join_class(db: Session, payload: StudentJoinRequest) -> dict:
         raise AppException(ErrorCode.INVITE_INVALID, "邀请码无效或已失效")
 
     klass = class_repo.get_by_id(invite.class_id)
-    if klass is None or klass.status != 1:
+    if klass is None:
         raise AppException(ErrorCode.INVITE_INVALID, "邀请码无效或已失效")
+    if klass.status != 1:
+        raise AppException(ErrorCode.CLASS_ARCHIVED, "班级已归档，暂停加入")
 
     if student_repo.get_by_class_and_no(klass.id, payload.student_no) is not None:
         raise AppException(ErrorCode.STUDENT_NO_EXISTS, "该班学号已存在")
@@ -271,6 +285,8 @@ def list_students(
             "name": student.name,
             "level": student.level,
             "xp_total": student.xp_total,
+            "status": student.status,
+            "must_change_password": bool(student.must_change_password),
             "qq_bound": binding_id is not None,
             "created_at": fmt_dt(student.created_at),
             "last_login_at": fmt_dt(student.last_login_at),
@@ -278,6 +294,98 @@ def list_students(
         for student, binding_id in rows
     ]
     return page_data(items, total, page, page_size)
+
+
+def archive_class(
+    db: Session,
+    current: CurrentUser,
+    class_id: int,
+    *,
+    request_id: str | None = None,
+) -> dict:
+    """归档用 class.status=0，不删数据；重复归档幂等。"""
+    klass = require_owned_class(db, class_id, current.user_id)
+    if klass.status != 0:
+        klass.status = 0
+        # 归档撤销该班学生所有旧会话；恢复后旧 token 也不复活
+        db.query(Student).filter(Student.class_id == class_id).update(
+            {Student.auth_version: Student.auth_version + 1}, synchronize_session=False
+        )
+        write_audit(
+            db,
+            actor_role="teacher",
+            actor_id=current.user_id,
+            target_role="class",
+            target_id=class_id,
+            class_id=class_id,
+            action="class_archive",
+            result="success",
+            request_id=request_id,
+        )
+        db.commit()
+        db.refresh(klass)
+    return {"id": klass.id, "status": klass.status}
+
+
+def restore_class(
+    db: Session,
+    current: CurrentUser,
+    class_id: int,
+    *,
+    request_id: str | None = None,
+) -> dict:
+    klass = require_owned_class(db, class_id, current.user_id)
+    if klass.status != 1:
+        klass.status = 1
+        write_audit(
+            db,
+            actor_role="teacher",
+            actor_id=current.user_id,
+            target_role="class",
+            target_id=class_id,
+            class_id=class_id,
+            action="class_restore",
+            result="success",
+            request_id=request_id,
+        )
+        db.commit()
+        db.refresh(klass)
+    return {"id": klass.id, "status": klass.status}
+
+
+def set_student_status(
+    db: Session,
+    current: CurrentUser,
+    *,
+    class_id: int,
+    student_id: int,
+    status: int,
+    request_id: str | None = None,
+) -> dict:
+    """停用/恢复学生；同状态不递增 auth_version。"""
+    require_active_class(db, class_id, current.user_id)
+    student = db.get(Student, student_id)
+    if student is None or student.class_id != class_id:
+        raise AppException(ErrorCode.CLASS_FORBIDDEN, "无权操作该学生")
+    changed = student.status != status
+    if changed:
+        student.status = status
+        if status == 0:
+            student.auth_version = int(student.auth_version or 1) + 1
+        write_audit(
+            db,
+            actor_role="teacher",
+            actor_id=current.user_id,
+            target_role="student",
+            target_id=student.id,
+            class_id=class_id,
+            action="student_disable" if status == 0 else "student_enable",
+            result="success",
+            request_id=request_id,
+        )
+        db.commit()
+        db.refresh(student)
+    return {"student_id": student.id, "status": student.status, "changed": changed}
 
 
 # 供其他 service 复用的校验函数（避免路由层重复写规则）

@@ -25,6 +25,7 @@ export interface TeacherUser {
   name: string
   account: string
   created_at?: string
+  must_change_password?: boolean
 }
 
 export interface StudentUser {
@@ -38,6 +39,7 @@ export interface StudentUser {
   level?: number
   xp_total?: number
   qq_bound?: boolean
+  must_change_password?: boolean
 }
 
 export type AuthUser = TeacherUser | StudentUser
@@ -68,6 +70,27 @@ export type LoginPayload = TeacherLoginPayload | StudentLoginPayload
 export interface AuthResult {
   token: string
   user: TeacherUser | StudentUser
+  must_change_password?: boolean
+}
+
+export interface PasswordChangePayload {
+  current_password: string
+  new_password: string
+}
+
+export interface PasswordResetResult {
+  student_id: number
+  temporary_password: string
+}
+
+export interface StudentStatusPayload {
+  status: 0 | 1
+}
+
+export interface StudentStatusResult {
+  student_id: number
+  status: 0 | 1
+  changed: boolean
 }
 
 // ---------------- API-05 ~ API-11 班级 ----------------
@@ -109,6 +132,7 @@ export interface ClassDetail {
   student_count: number
   doc_count: number
   invite_code: string | null
+  status?: number
   created_at: string
 }
 
@@ -122,6 +146,11 @@ export interface InviteCodeInfo {
 export interface ResetInviteCodeResult {
   invite_code: string
   created_at: string
+}
+
+export interface ClassStatusResult {
+  id: number
+  status: number
 }
 
 export interface StudentJoinPayload {
@@ -143,6 +172,8 @@ export interface StudentListItem {
   name: string
   level: number
   xp_total: number
+  status?: number
+  must_change_password?: boolean
   qq_bound: boolean
   created_at: string
   last_login_at: string | null

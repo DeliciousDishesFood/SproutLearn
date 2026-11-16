@@ -10,8 +10,8 @@ from app.deps import CurrentUser, get_db, require_teacher
 from app.middleware import rate_limit
 from app.middleware.rate_limit import client_ip
 from app.schemas.auth import StudentJoinRequest
-from app.schemas.class_ import ClassCreateRequest
-from app.services import class_service
+from app.schemas.class_ import ClassCreateRequest, StudentStatusRequest
+from app.services import class_service, password_service
 from app.utils import cache_keys
 from app.utils.response import success
 
@@ -36,15 +36,17 @@ def create_class(
 @router.get("")
 def list_classes(
     status: int | None = Query(default=None, ge=0, le=1),
+    include_archived: bool = Query(default=False),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=_settings.pagination_default_size, ge=1, le=_settings.pagination_max_size),
     current: CurrentUser = Depends(require_teacher),
     db: Session = Depends(get_db),
 ):
-    """API-06 我的班级列表（仅 teacher_id = 当前用户）。"""
+    """API-06 我的班级列表：默认仅活跃班；include_archived=true 才含归档。"""
+    effective_status = None if include_archived else (status if status is not None else 1)
     return success(
         class_service.list_classes(
-            db, current, status=status, page=page, page_size=page_size
+            db, current, status=effective_status, page=page, page_size=page_size
         )
     )
 
@@ -64,6 +66,74 @@ def get_class_detail(
 ):
     """API-07 班级详情（仅本班）。"""
     return success(class_service.get_class_detail(db, current, class_id))
+
+
+@router.post("/{class_id}/archive")
+def archive_class(
+    class_id: int,
+    request: Request,
+    current: CurrentUser = Depends(require_teacher),
+    db: Session = Depends(get_db),
+):
+    return success(
+        class_service.archive_class(
+            db, current, class_id, request_id=getattr(request.state, "request_id", None)
+        )
+    )
+
+
+@router.post("/{class_id}/restore")
+def restore_class(
+    class_id: int,
+    request: Request,
+    current: CurrentUser = Depends(require_teacher),
+    db: Session = Depends(get_db),
+):
+    return success(
+        class_service.restore_class(
+            db, current, class_id, request_id=getattr(request.state, "request_id", None)
+        )
+    )
+
+
+@router.put("/{class_id}/students/{student_id}/status")
+def set_student_status(
+    class_id: int,
+    student_id: int,
+    payload: StudentStatusRequest,
+    request: Request,
+    current: CurrentUser = Depends(require_teacher),
+    db: Session = Depends(get_db),
+):
+    return success(
+        class_service.set_student_status(
+            db,
+            current,
+            class_id=class_id,
+            student_id=student_id,
+            status=payload.status,
+            request_id=getattr(request.state, "request_id", None),
+        )
+    )
+
+
+@router.post("/{class_id}/students/{student_id}/password-reset")
+def reset_student_password(
+    class_id: int,
+    student_id: int,
+    request: Request,
+    current: CurrentUser = Depends(require_teacher),
+    db: Session = Depends(get_db),
+):
+    return success(
+        password_service.reset_student_password(
+            db,
+            current,
+            class_id=class_id,
+            student_id=student_id,
+            request_id=getattr(request.state, "request_id", None),
+        )
+    )
 
 
 @router.get("/{class_id}/invite-code")

@@ -13,6 +13,7 @@ from app.config import get_settings
 from app.deps import CurrentUser
 from app.exceptions import AppException, ErrorCode
 from app.models.answer_record import AnswerRecord
+from app.models.class_ import Class
 from app.models.attempt import Attempt
 from app.models.grading_result import GradingResult
 from app.models.paper import Paper
@@ -213,6 +214,10 @@ def save_answer(
     payload: AnswerSaveRequest,
 ) -> dict[str, Any]:
     attempt, paper = _require_attempt(db, current, attempt_id, lock=True)
+    if current.role == "student":
+        klass = db.get(Class, attempt.class_id)
+        if klass is None or klass.status != 1:
+            raise AppException(ErrorCode.CLASS_ARCHIVED, "班级已归档，暂停作答")
     if attempt.status != "doing":
         raise AppException(ErrorCode.ATTEMPT_SUBMITTED, "本次作答已提交，禁止再改")
     rows = _paper_rows(db, paper.id)
@@ -336,6 +341,10 @@ def _result_payload(
 
 def submit_attempt(db: Session, current: CurrentUser, *, attempt_id: int) -> dict[str, Any]:
     attempt, paper = _require_attempt(db, current, attempt_id, lock=True)
+    if current.role == "student":
+        klass = db.get(Class, attempt.class_id)
+        if klass is None or klass.status != 1:
+            raise AppException(ErrorCode.CLASS_ARCHIVED, "班级已归档，暂停作答")
     if attempt.status != "doing":
         # 幂等：不重复判分、不重复写 grading_result
         return _result_payload(db, attempt, paper)

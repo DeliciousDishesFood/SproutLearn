@@ -48,6 +48,9 @@ export const STORAGE_KEYS = {
 /** 会话失效时派发到 window 的事件名，供 main.ts 统一跳转登录页。 */
 export const SESSION_EXPIRED_EVENT = 'sproutlearn.v3:session-expired'
 
+/** 后端要求强制改密（40303）时派发；main.ts 统一跳强制改密页，不清会话。 */
+export const PASSWORD_CHANGE_REQUIRED_EVENT = 'sproutlearn.v3:password-change-required'
+
 export const PAGE_SIZE = 10
 export const PAGE_SIZE_MAX = 50
 export const PAGE_SIZE_OPTIONS = [10, 20, 50]
@@ -62,6 +65,9 @@ export const ERROR_CODE = {
   BAD_CREDENTIALS: 40103,
   ROLE_FORBIDDEN: 40301,
   CLASS_FORBIDDEN: 40302,
+  PASSWORD_CHANGE_REQUIRED: 40303,
+  ACCOUNT_DISABLED: 40304,
+  CLASS_ARCHIVED: 40305,
   NOT_FOUND: 40401,
   STUDENT_NO_EXISTS: 40901,
   INVITE_INVALID: 40902,
@@ -95,6 +101,9 @@ export const ERROR_MESSAGES: Record<number, string> = {
   [ERROR_CODE.BAD_CREDENTIALS]: '账号或密码错误，请检查后重试',
   [ERROR_CODE.ROLE_FORBIDDEN]: '当前账号无权执行此操作',
   [ERROR_CODE.CLASS_FORBIDDEN]: '无权访问该班级资源，请确认班级归属',
+  [ERROR_CODE.PASSWORD_CHANGE_REQUIRED]: '请先修改临时密码后再继续',
+  [ERROR_CODE.ACCOUNT_DISABLED]: '账号已停用，请联系老师处理',
+  [ERROR_CODE.CLASS_ARCHIVED]: '班级已归档，仅可查看历史数据',
   [ERROR_CODE.NOT_FOUND]: '资源不存在或已被删除',
   [ERROR_CODE.STUDENT_NO_EXISTS]: '该学号已在本班使用，请更换学号或直接登录',
   [ERROR_CODE.INVITE_INVALID]: '邀请码无效或已失效，请向老师确认后重新输入',

@@ -12,6 +12,7 @@ import {
   Menu,
   Moon,
   Settings,
+  ShieldCheck,
   Sprout,
   Sun,
   Users,
@@ -95,6 +96,7 @@ const teacherManage = computed<NavItem[]>(() => [
     icon: Settings,
     requiresClass: true,
   },
+  { label: '账号', to: '/teacher/settings', icon: ShieldCheck },
   { label: '文档', to: '/teacher/docs', icon: BookOpen },
 ])
 
@@ -124,7 +126,8 @@ function isActive(item: NavItem): boolean {
   if (item.label === '试卷') return (path.includes('/papers') || name === 'student-papers') && !path.includes('/attempts')
   if (item.label === '批改') return path.includes('/review') || path.includes('/attempts') || name === 'teacher-review'
   if (item.label === '消息') return path.includes('/notifications')
-  if (item.label === '设置') return path.includes('/settings')
+  if (item.label === '设置') return /\/teacher\/classes\/\d+\/settings/.test(path)
+  if (item.label === '账号') return path === '/teacher/settings'
   if (item.label === '文档') return path.includes('/docs')
   if (item.label === '成长') return path === '/student/growth'
   if (item.label === '我的') return path === '/student/profile'

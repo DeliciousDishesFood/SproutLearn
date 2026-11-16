@@ -12,6 +12,7 @@ from app.config import get_settings
 from app.deps import CurrentUser
 from app.exceptions import AppException, ErrorCode
 from app.models.attempt import Attempt
+from app.models.class_ import Class
 from app.models.paper import Paper
 from app.models.paper_question import PaperQuestion
 from app.models.question import Question
@@ -25,7 +26,7 @@ from app.schemas.paper import PaperCreateRequest, PaperUpdateRequest
 from app.services import question_bank_service
 from app.services import notification_service
 from app.services.attempt_view import attempt_time_fields
-from app.services.class_service import require_owned_class
+from app.services.class_service import require_active_class, require_owned_class
 from app.services.qq_bot import notifier as bot_notifier
 from app.utils.response import page_data
 from app.utils.time import fmt_dt, now_naive
@@ -93,7 +94,7 @@ def _require_paper_for_teacher(db: Session, paper_id: int, teacher_id: int) -> P
 def create_paper(
     db: Session, current: CurrentUser, *, class_id: int, payload: PaperCreateRequest
 ) -> dict[str, Any]:
-    require_owned_class(db, class_id, current.user_id)
+    require_active_class(db, class_id, current.user_id)
     question_repo = QuestionRepository(db)
     selected: list[Question]
     bank_ids = list(dict.fromkeys(payload.bank_ids or []))
@@ -216,6 +217,7 @@ def update_paper(
     payload: PaperUpdateRequest,
 ) -> dict[str, Any]:
     paper = _require_paper_for_teacher(db, paper_id, current.user_id)
+    require_active_class(db, paper.class_id, current.user_id)
     if paper.status == "published":
         raise AppException(ErrorCode.PAPER_PUBLISHED_FORBIDDEN, "已发布试卷不能修改")
     fields = payload.model_fields_set
@@ -246,6 +248,7 @@ def withdraw_paper(db: Session, current: CurrentUser, *, paper_id: int) -> dict[
     # 学生、跨班教师、非创建者教师统一 40302
     if current.role != "teacher" or paper.created_by != current.user_id:
         raise AppException(ErrorCode.CLASS_FORBIDDEN, "无权访问该班级资源")
+    require_active_class(db, paper.class_id, current.user_id)
     if paper.status != "published":
         raise AppException(ErrorCode.PAPER_STATE_CONFLICT, "试卷当前状态不允许撤回")
     paper.status = "closed"
@@ -391,7 +394,7 @@ def publish_paper(db: Session, current: CurrentUser, *, paper_id: int) -> dict[s
     paper = repo.lock_by_id(paper_id)
     if paper is None:
         raise AppException(ErrorCode.NOT_FOUND, "试卷不存在")
-    require_owned_class(db, paper.class_id, current.user_id)
+    require_active_class(db, paper.class_id, current.user_id)
     # draft 和撤回后的 closed 都允许重新发布
     if paper.status == "published":
         return paper_detail(db, current, paper_id=paper.id)
@@ -458,6 +461,9 @@ def start_attempt(db: Session, current: CurrentUser, *, paper_id: int) -> dict[s
         raise AppException(ErrorCode.NOT_FOUND, "试卷不存在")
     if current.class_id != paper.class_id:
         raise AppException(ErrorCode.CLASS_FORBIDDEN, "无权访问该班级资源")
+    klass = db.get(Class, paper.class_id)
+    if klass is None or klass.status != 1:
+        raise AppException(ErrorCode.CLASS_ARCHIVED, "班级已归档，暂停作答")
     existing = attempt_repo.get_by_paper_student(paper.id, current.user_id)
     if existing is not None:
         return _attempt_with_questions(db, existing, paper)

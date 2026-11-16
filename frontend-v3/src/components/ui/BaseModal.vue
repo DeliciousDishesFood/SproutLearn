@@ -9,8 +9,10 @@ const props = withDefaults(
     description?: string
     wide?: boolean
     closeOnMask?: boolean
+    /** 一次性敏感信息弹窗：隐藏右上角关闭，只允许页脚显式关闭。 */
+    hideClose?: boolean
   }>(),
-  { description: '', wide: false, closeOnMask: true },
+  { description: '', wide: false, closeOnMask: true, hideClose: false },
 )
 
 const emit = defineEmits<{ (event: 'close'): void }>()
@@ -52,7 +54,13 @@ useFocusTrap({
             <h2 :id="titleId">{{ title }}</h2>
             <p v-if="description" :id="descriptionId">{{ description }}</p>
           </div>
-          <button class="modal__close" type="button" aria-label="关闭" @click="emit('close')">
+          <button
+            v-if="!hideClose"
+            class="modal__close"
+            type="button"
+            aria-label="关闭"
+            @click="emit('close')"
+          >
             ×
           </button>
         </header>

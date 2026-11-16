@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.models.bot_notice import BotNotice
+from app.models.class_ import Class
 from app.models.class_bot_config import ClassBotConfig
 from app.models.paper import Paper
 from app.models.qq_binding import QqBinding
@@ -17,6 +18,9 @@ from app.utils.time import fmt_dt, now_naive
 
 
 def _enabled_config(db: Session, class_id: int) -> ClassBotConfig | None:
+    klass = db.get(Class, class_id)
+    if klass is None or klass.status != 1:
+        return None
     if not get_settings().qq_bot_enabled:
         return None
     config = (
