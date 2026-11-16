@@ -1,0 +1,100 @@
+/* 青芽新前端 v1 唯一设计 token（契约 §4 / board-ui Board UI 覆盖层）。
+   仅允许青柠强调，禁止深绿主色、全页泛绿、玻璃/新拟物。 */
+:root {
+  color-scheme: light;
+  --bg: #F5F6F8;
+  --surface: #FFFFFF;
+  --surface-alt: #F7F8FA;
+  --surface-sunken: #F2F4F7;
+  --text: #10151B;
+  --muted: #6B7280;
+  --tertiary: #9AA1AB;
+  --line: #E9EBEF;
+  --line-soft: #F2F4F7;
+  --line-strong: #D3D8E0;
+  --btn-line: #E1E4EA;
+  --lime: #9AE600;
+  --lime-deep: #7CCE00;
+  --lime-hi: #B4F51A;
+  --lime-soft: #F3FADF;
+  --lime-wash: #FAFDF1;
+  --lime-line: #E1F4BC;
+  --lime-ink: #1B2A00;
+  --lime-text: #4C7300;
+  --card-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+  --sheet-shadow: 0 18px 48px rgba(16, 24, 40, 0.18);
+  --focus: 0 0 0 3px rgba(154, 230, 0, 0.3);
+  --radius: 16px;
+  --radius-sm: 10px;
+  --heat-0: #F0F2F5;
+  --heat-1: #EEF8D9;
+  --heat-2: #DAF0A8;
+  --heat-3: #B9E45C;
+  --heat-4: #9AE600;
+  --pill-bg: #F5F6F8;
+  --pill-text: #5B6472;
+  --option-line: #E5E8ED;
+  --track: #DFE3E9;
+  --code-bg: #F7F8FA;
+  --code-text: #1F2937;
+  --danger: #B42318;
+  --danger-soft: #FEF3F2;
+  --danger-line: #FECDCA;
+  --amber: #B45309;
+  --amber-soft: #FFFBEB;
+  --amber-line: #FDE68A;
+  --scrollbar-thumb: #D7DBE2;
+  --scrollbar-thumb-hover: #C2C8D1;
+  --scrollbar-track: transparent;
+  --overlay: rgba(16, 21, 27, 0.42);
+  --font: "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+}
+
+/* 暗色主题：中性近黑画布 + 抬升面板 + 发丝边，强调色仍只用青柠。
+   参考 Board UI 模板的明暗切换做法（同源 token，不做逐组件反色）。 */
+[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #0B0D10;
+  --surface: #14181D;
+  --surface-alt: #191E24;
+  --surface-sunken: #0F1216;
+  --text: #E9ECF0;
+  --muted: #A1AAB6;
+  --tertiary: #7E8794;
+  --line: #252A32;
+  --line-soft: #1D2229;
+  --line-strong: #333A44;
+  --btn-line: #2E3540;
+  --lime: #9AE600;
+  --lime-deep: #8CD600;
+  --lime-hi: #B4F51A;
+  --lime-soft: rgba(154, 230, 0, 0.14);
+  --lime-wash: rgba(154, 230, 0, 0.07);
+  --lime-line: rgba(154, 230, 0, 0.32);
+  --lime-ink: #0E1900;
+  --lime-text: #BEEF63;
+  --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --sheet-shadow: 0 18px 48px rgba(0, 0, 0, 0.55);
+  --focus: 0 0 0 3px rgba(154, 230, 0, 0.22);
+  --heat-0: #1C2229;
+  --heat-1: #2A3517;
+  --heat-2: #47581F;
+  --heat-3: #6E8C1F;
+  --heat-4: #A6E01A;
+  --pill-bg: #1B2027;
+  --pill-text: #A9B2BE;
+  --option-line: #2C333D;
+  --track: #2C333D;
+  --code-bg: #0F1216;
+  --code-text: #D7DCE3;
+  --danger: #FF9B8C;
+  --danger-soft: rgba(255, 98, 76, 0.12);
+  --danger-line: rgba(255, 98, 76, 0.32);
+  --amber: #F2C878;
+  --amber-soft: rgba(242, 200, 120, 0.12);
+  --amber-line: rgba(242, 200, 120, 0.3);
+  --scrollbar-thumb: #2F3742;
+  --scrollbar-thumb-hover: #3E4753;
+  --scrollbar-track: transparent;
+  --overlay: rgba(4, 6, 8, 0.62);
+}

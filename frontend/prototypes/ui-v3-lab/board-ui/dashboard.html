@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>青芽 · 教师工作台</title>
+  <link rel="stylesheet" href="theme.css" />
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <a class="side-brand" href="dashboard.html">
+        <span class="side-brand__mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21V10"/><path d="M12 10C12 6 9 4 5 4c0 4 3 6 7 6Z"/><path d="M12 13c0-3 2.5-5 6-5 0 3-2.5 5-6 5Z"/></svg>
+        </span>
+        <span class="side-brand__name">青芽<em>SproutLearn</em></span>
+      </a>
+
+      <label class="side-search">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
+        <input type="search" placeholder="快速搜索" aria-label="快速搜索" />
+        <kbd>⌘K</kbd>
+      </label>
+
+      <nav class="side-nav" aria-label="主导航">
+        <p class="side-nav__label">教学</p>
+        <a class="side-nav__item is-active" href="dashboard.html" aria-current="page">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 11 12 4l8 7v8a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1z"/></svg>
+          <span>工作台</span>
+        </a>
+        <a class="side-nav__item" href="dashboard.html">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3"/><path d="M3.5 19c0-3 2.4-5 5.5-5s5.5 2 5.5 5"/><circle cx="17" cy="9" r="2.4"/><path d="M16 14c2.6 0 4.5 1.7 4.5 4"/></svg>
+          <span>班级</span>
+        </a>
+        <a class="side-nav__item" href="dashboard.html">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>
+          <span>题库</span>
+        </a>
+        <a class="side-nav__item" href="practice.html">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5"/><path d="m9 14 2 2 4-4"/></svg>
+          <span>试卷</span>
+        </a>
+        <p class="side-nav__label">管理</p>
+        <a class="side-nav__item" href="dashboard.html">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m9 5 8 7-8 7"/><path d="M5 5v14"/></svg>
+          <span>批改</span>
+        </a>
+        <a class="side-nav__item" href="dashboard.html">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16v11H8l-4 4z"/></svg>
+          <span>消息</span>
+        </a>
+        <a class="side-nav__item" href="dashboard.html">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/></svg>
+          <span>设置</span>
+        </a>
+      </nav>
+
+      <div class="side-user">
+        <span class="avatar" title="黄老师">黄</span>
+        <span class="side-user__meta"><strong>黄老师</strong><em>demo.teacher@school.edu.cn</em></span>
+        <button class="side-user__out" type="button" aria-label="退出登录">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 5V4a1 1 0 0 0-1-1H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1v-1"/><path d="M10 12h10M17 9l3 3-3 3"/></svg>
+        </button>
+      </div>
+    </aside>
+
+    <div class="mobile-bar">
+      <a class="side-brand" href="dashboard.html">
+        <span class="side-brand__mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21V10"/><path d="M12 10C12 6 9 4 5 4c0 4 3 6 7 6Z"/><path d="M12 13c0-3 2.5-5 6-5 0 3-2.5 5-6 5Z"/></svg>
+        </span>
+        <span class="side-brand__name">青芽<em>SproutLearn</em></span>
+      </a>
+      <span class="avatar" title="黄老师">黄</span>
+    </div>
+
+    <main class="main">
+      <header class="page-head">
+        <div class="page-head__main">
+          <p class="page-head__crumb">星期三 · 高二(2)班</p>
+          <h1>早上好，黄老师</h1>
+          <p class="page-head__lede">今天也和学生一起，把每个知识点讲清楚。</p>
+        </div>
+        <div class="page-head__actions">
+          <button class="btn" type="button">发通知</button>
+          <button class="btn btn--primary" type="button">去批改</button>
+        </div>
+      </header>
+
+      <section class="stats" aria-label="班级指标">
+        <article class="stat">
+          <div class="stat__label">
+            <span class="stat__icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 4h8v16H8z"/><path d="M10 8h4M10 12h4"/></svg></span>
+            待批
+          </div>
+          <div class="stat__row"><span class="stat__value">3</span><span class="stat__delta stat__delta--soft">需处理</span></div>
+          <p class="stat__hint">份练习等待批改</p>
+        </article>
+        <article class="stat">
+          <div class="stat__label">
+            <span class="stat__icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 19V5h14v14z"/><path d="m8 14 3-3 2 2 3-4"/></svg></span>
+            本周练习
+          </div>
+          <div class="stat__row"><span class="stat__value">2</span><span class="stat__delta">已发布</span></div>
+          <p class="stat__hint">已发布 2 份</p>
+        </article>
+        <article class="stat">
+          <div class="stat__label">
+            <span class="stat__icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="7"/><path d="M12 8v4l3 2"/></svg></span>
+            班级均分
+          </div>
+          <div class="stat__row"><span class="stat__value">82</span><span class="stat__delta">+4 较上周</span></div>
+          <p class="stat__hint">较上周 +4</p>
+        </article>
+        <article class="stat">
+          <div class="stat__label">
+            <span class="stat__icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="9" r="3"/><path d="M4 19c0-3 2.2-5 5-5s5 2 5 5"/><path d="M16 7h4M18 5v4"/></svg></span>
+            未交
+          </div>
+          <div class="stat__row"><span class="stat__value">1</span><span class="stat__delta stat__delta--warn">1 人</span></div>
+          <p class="stat__hint">已提醒 1 人</p>
+        </article>
+      </section>
+
+      <div class="columns">
+        <section class="card">
+          <header class="card__head">
+            <h2>最近试卷</h2>
+            <a class="card__link" href="practice.html">查看全部</a>
+          </header>
+          <div class="chips" role="group" aria-label="筛选最近试卷">
+            <button class="chip is-active" type="button">全部</button>
+            <button class="chip" type="button">已发布</button>
+            <button class="chip" type="button">批改中</button>
+          </div>
+          <div class="table">
+            <div class="table__head" aria-hidden="true"><span>试卷</span><span>状态</span><span>进度</span></div>
+            <a class="table__row" href="practice.html">
+              <span class="table__main"><strong>随堂测试3</strong><em>高二(2)班 · 今天 08:40</em></span>
+              <span class="badge badge--lime">已发布</span>
+              <span class="table__meta">均分 82</span>
+            </a>
+            <a class="table__row" href="practice.html">
+              <span class="table__main"><strong>函数与导数 · 课后练习</strong><em>高二(2)班 · 昨天 16:10</em></span>
+              <span class="badge badge--amber">批改中</span>
+              <span class="table__meta">交 31/34</span>
+            </a>
+            <a class="table__row" href="practice.html">
+              <span class="table__main"><strong>错题回顾卷 · 第 2 周</strong><em>高二(1)班 · 10 月 28 日</em></span>
+              <span class="badge">草稿</span>
+              <span class="table__meta">未发布</span>
+            </a>
+          </div>
+        </section>
+
+        <section class="card card--heat">
+          <header class="card__head">
+            <h2>学习热力</h2>
+            <span class="card__meta">最近 12 周</span>
+          </header>
+          <div class="dots" aria-label="最近十二周学习热力示意">
+            <i class="l0"></i><i class="l1"></i><i class="l0"></i><i class="l2"></i><i class="l1"></i><i class="l0"></i><i class="l3"></i><i class="l1"></i><i class="l0"></i><i class="l2"></i><i class="l0"></i><i class="l1"></i>
+            <i class="l1"></i><i class="l2"></i><i class="l1"></i><i class="l0"></i><i class="l3"></i><i class="l1"></i><i class="l0"></i><i class="l2"></i><i class="l1"></i><i class="l0"></i><i class="l2"></i><i class="l0"></i>
+            <i class="l0"></i><i class="l3"></i><i class="l2"></i><i class="l1"></i><i class="l0"></i><i class="l2"></i><i class="l1"></i><i class="l4"></i><i class="l2"></i><i class="l1"></i><i class="l0"></i><i class="l1"></i>
+            <i class="l2"></i><i class="l1"></i><i class="l0"></i><i class="l3"></i><i class="l2"></i><i class="l1"></i><i class="l0"></i><i class="l2"></i><i class="l0"></i><i class="l1"></i><i class="l2"></i><i class="l3"></i>
+            <i class="l1"></i><i class="l0"></i><i class="l2"></i><i class="l4"></i><i class="l1"></i><i class="l2"></i><i class="l0"></i><i class="l1"></i><i class="l3"></i><i class="l2"></i><i class="l1"></i><i class="l0"></i>
+            <i class="l0"></i><i class="l2"></i><i class="l1"></i><i class="l0"></i><i class="l2"></i><i class="l3"></i><i class="l1"></i><i class="l0"></i><i class="l2"></i><i class="l1"></i><i class="l4"></i><i class="l2"></i>
+            <i class="l1"></i><i class="l0"></i><i class="l2"></i><i class="l1"></i><i class="l0"></i><i class="l2"></i><i class="l3"></i><i class="l1"></i><i class="l0"></i><i class="l2"></i><i class="l1"></i><i class="l0"></i>
+          </div>
+          <div class="dots-legend"><span>少</span><i class="l0"></i><i class="l1"></i><i class="l2"></i><i class="l3"></i><i class="l4"></i><span>多</span></div>
+        </section>
+      </div>
+
+      <div class="columns columns--even">
+        <blockquote class="card quote-card">
+          <p>“把复杂讲简单，把简单讲深刻。”</p>
+          <cite>青芽教学手记</cite>
+        </blockquote>
+        <section class="card empty-card">
+          <span class="empty-card__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6 4h12v16l-6-3-6 3z"/></svg>
+          </span>
+          <div>
+            <h2>还没有收藏的试卷</h2>
+            <p>收藏的试卷会出现在这里，方便下次快速组卷。</p>
+            <button class="btn btn--sm" type="button">去题库看看</button>
+          </div>
+        </section>
+      </div>
+
+      <footer class="foot">青芽 SproutLearn · 教师工作台 · 原型演示</footer>
+    </main>
+  </div>
+  <script src="../assets/demo.js"></script>
+</body>
+</html>

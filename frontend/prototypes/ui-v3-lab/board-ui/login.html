@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>青芽 · 登录</title>
+  <link rel="stylesheet" href="theme.css" />
+</head>
+<body class="login-body">
+  <div class="ambient" aria-hidden="true"></div>
+  <main class="login">
+    <section class="login-story">
+      <a class="brand" href="dashboard.html">
+        <span class="brand__mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21V10"/><path d="M12 10C12 6 9 4 5 4c0 4 3 6 7 6Z"/><path d="M12 13c0-3 2.5-5 6-5 0 3-2.5 5-6 5Z"/></svg>
+        </span>
+        <span class="brand__text">青芽 <em>SproutLearn</em></span>
+      </a>
+      <div class="story">
+        <p class="eyebrow">SPROUTLEARN</p>
+        <h1>让每一次练习，<br />都有回响。</h1>
+        <p class="story__lede">从资料到组卷，从作答到复核，把教学闭环留在同一个地方。</p>
+        <ul class="story__list">
+          <li><i></i>资料有出处，讲评有依据</li>
+          <li><i></i>班级练习与批改形成闭环</li>
+          <li><i></i>成长反馈看得见、跟得上</li>
+        </ul>
+      </div>
+      <p class="story__quote">“把复杂讲简单，把简单讲深刻。”<span>青芽教学手记</span></p>
+    </section>
+
+    <section class="login-form-wrap">
+      <form class="login-card" data-login-form novalidate>
+        <header class="login-card__head">
+          <h2>欢迎回来</h2>
+          <p>登录后继续你的教学与学习。</p>
+        </header>
+        <div class="segmented" role="tablist" aria-label="身份">
+          <button class="segmented__item is-active" type="button" role="tab" aria-selected="true">教师</button>
+          <button class="segmented__item" type="button" role="tab" aria-selected="false">学生</button>
+        </div>
+        <label class="field">
+          <span>账号</span>
+          <input type="text" name="account" autocomplete="username" value="demo.teacher@school.edu.cn" />
+        </label>
+        <label class="field">
+          <span>密码</span>
+          <input type="password" name="password" autocomplete="current-password" value="sprout123" />
+        </label>
+        <div class="login-row">
+          <label class="check"><input type="checkbox" checked /> <span>记住我</span></label>
+          <a class="login-link" href="login.html">忘记密码？</a>
+        </div>
+        <p class="form-error" data-login-error hidden>账号或密码不能为空，请检查后再试。</p>
+        <button class="btn btn--primary btn--block" type="submit">进入青芽</button>
+        <p class="login-foot">还没有账号？联系班级老师开通。</p>
+        <p class="login-demo">演示环境 · 账号已预填，可直接进入</p>
+      </form>
+    </section>
+  </main>
+  <script src="../assets/demo.js"></script>
+</body>
+</html>

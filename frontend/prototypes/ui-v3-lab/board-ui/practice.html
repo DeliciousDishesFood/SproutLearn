@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>青芽 · 随堂测试3</title>
+  <link rel="stylesheet" href="theme.css" />
+</head>
+<body class="practice-body">
+  <div class="ambient" aria-hidden="true"></div>
+  <header class="topbar topbar--practice">
+    <a class="brand" href="dashboard.html">
+      <span class="brand__mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21V10"/><path d="M12 10C12 6 9 4 5 4c0 4 3 6 7 6Z"/><path d="M12 13c0-3 2.5-5 6-5 0 3-2.5 5-6 5Z"/></svg>
+      </span>
+      <span class="brand__text">青芽 <em>SproutLearn</em></span>
+    </a>
+    <div class="practice-title">
+      <strong>随堂测试3</strong>
+      <span>第 3 题 / 共 10 题</span>
+    </div>
+    <div class="top-actions">
+      <span class="timer" data-timer>24:36</span>
+      <button class="btn btn--ghost" type="button">退出练习</button>
+    </div>
+  </header>
+
+  <main class="practice">
+    <div class="practice-head">
+      <div>
+        <p class="eyebrow">PRACTICE · PYTHON</p>
+        <h1>随堂测试3</h1>
+      </div>
+      <div class="progress" aria-label="答题进度">
+        <span class="progress__bar"><i style="width: 30%"></i></span>
+        <span class="progress__text">已答 3 / 10</span>
+      </div>
+    </div>
+
+    <div class="practice-grid">
+      <section class="q-card">
+        <div class="q-meta">
+          <span class="q-index">第 3 题</span>
+          <span class="tag">Python</span>
+          <span class="tag">单选</span>
+          <span class="tag">3 分</span>
+        </div>
+        <div class="q-scope">
+          <p class="q-stem">阅读下面代码，输出结果是什么？</p>
+          <pre class="code"><code>nums = [1, 2, 3, 4]
+total = 0
+for n in nums:
+    total += n * 2
+print(total)</code></pre>
+          <div class="q-options" role="radiogroup" aria-label="选项">
+            <button class="option" type="button" role="radio" aria-checked="false" data-value="A">
+              <span class="option__key">A</span><span class="option__text"><code>10</code></span>
+            </button>
+            <button class="option" type="button" role="radio" aria-checked="false" data-value="B">
+              <span class="option__key">B</span><span class="option__text"><code>16</code></span>
+            </button>
+            <button class="option" type="button" role="radio" aria-checked="false" data-value="C">
+              <span class="option__key">C</span><span class="option__text"><code>20</code></span>
+            </button>
+            <button class="option" type="button" role="radio" aria-checked="false" data-value="D">
+              <span class="option__key">D</span><span class="option__text"><code>24</code></span>
+            </button>
+          </div>
+        </div>
+        <div class="q-foot">
+          <button class="btn" type="button">上一题</button>
+          <span class="q-foot__count">3 / 10</span>
+          <button class="btn btn--primary" type="button">下一题</button>
+        </div>
+      </section>
+
+      <aside class="side-card">
+        <header class="panel__head">
+          <h2>答题卡</h2>
+          <span class="panel__meta">已自动保存</span>
+        </header>
+        <div class="sheet" aria-label="题号">
+          <button class="sheet__dot is-done" type="button">1</button>
+          <button class="sheet__dot is-done" type="button">2</button>
+          <button class="sheet__dot is-current" type="button" aria-current="step">3</button>
+          <button class="sheet__dot" type="button">4</button>
+          <button class="sheet__dot" type="button">5</button>
+          <button class="sheet__dot" type="button">6</button>
+          <button class="sheet__dot" type="button">7</button>
+          <button class="sheet__dot" type="button">8</button>
+          <button class="sheet__dot" type="button">9</button>
+          <button class="sheet__dot" type="button">10</button>
+        </div>
+        <div class="legend">
+          <span><i class="legend__dot is-done"></i>已答</span>
+          <span><i class="legend__dot is-current"></i>当前</span>
+          <span><i class="legend__dot"></i>未答</span>
+        </div>
+        <button class="btn btn--primary btn--block" type="button">提交试卷</button>
+        <p class="side-note">提交前会自动保存；提交后试卷锁定，无法修改答案。</p>
+      </aside>
+    </div>
+  </main>
+
+  <div class="ask-backdrop" data-ask-backdrop></div>
+  <aside class="ask-panel" data-ask-panel aria-hidden="true" aria-label="问问小芽">
+    <header class="ask-head">
+      <span class="ask-title">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v3M4.9 6.9l2.1 2.1M3 14h3M19.1 6.9 17 9M21 14h-3"/><circle cx="12" cy="14" r="5"/></svg>
+        问问小芽
+      </span>
+      <button class="icon-btn" type="button" data-ask-close aria-label="关闭">×</button>
+    </header>
+    <div class="ask-chip">
+      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16v14H4z"/><path d="M8 9h8M8 13h5"/></svg>
+      <span class="ask-chip__text">print(total)</span>
+      <button type="button" class="ask-chip__x" data-ask-clear aria-label="清除选中文案">×</button>
+    </div>
+    <div class="ask-thread" data-ask-thread>
+      <div class="ask-msg ask-msg--bot">
+        <p>print(total) 会输出 20。循环把每个元素乘 2 后累加：2 + 4 + 6 + 8 = 20，所以选 C。可以先在纸上写出每一步的 total，再对照选项。</p>
+        <span class="ask-src">仅作练习参考</span>
+      </div>
+    </div>
+    <form class="ask-input" data-ask-form>
+      <textarea rows="2" data-ask-input placeholder="继续追问…" aria-label="向小芽提问"></textarea>
+      <button class="btn btn--primary" type="submit">发送</button>
+    </form>
+    <p class="ask-note">回答仅作练习参考，不会计入成绩。</p>
+  </aside>
+  <button class="ask-trigger" type="button" data-ask-trigger hidden>
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v3M4.9 6.9l2.1 2.1M3 14h3M19.1 6.9 17 9M21 14h-3"/><circle cx="12" cy="14" r="5"/></svg>
+    问问小芽
+  </button>
+
+  <script src="../assets/demo.js"></script>
+</body>
+</html>

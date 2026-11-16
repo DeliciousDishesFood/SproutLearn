@@ -1,0 +1,31 @@
+{
+  "name": "sproutlearn-web-v3",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "青芽 SproutLearn 新前端 v1（frontend-v3）",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5174",
+    "build": "vue-tsc --noEmit && vite build",
+    "typecheck": "vue-tsc --noEmit",
+    "preview": "vite preview --host 127.0.0.1 --port 4174"
+  },
+  "dependencies": {
+    "axios": "1.21.0",
+    "dompurify": "3.2.3",
+    "lucide-vue-next": "1.0.0",
+    "marked": "12.0.2",
+    "pinia": "3.0.4",
+    "vue": "3.5.45",
+    "vue-router": "4.6.3"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "6.0.10",
+    "typescript": "5.9.3",
+    "vite": "7.3.7",
+    "vue-tsc": "3.3.14"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  }
+}
