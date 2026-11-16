@@ -449,6 +449,7 @@ html {
 }
 
 .select__value {
+  flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -457,6 +458,14 @@ html {
 
 .select__value.is-placeholder {
   color: var(--tertiary);
+}
+
+/* 触发器左侧语义图标（题库/班级等），不压缩、不随下拉旋转。 */
+.select__icon {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  color: var(--muted);
 }
 
 .select__chevron {
@@ -1010,6 +1019,25 @@ html {
   text-transform: uppercase;
 }
 
+/* 金句改为表格下方全宽窄条：横向排布，不占半栏。 */
+.quote-card--strip {
+  flex-direction: row;
+  align-items: baseline;
+  justify-content: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 18px;
+}
+
+.quote-card--strip p {
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.quote-card--strip cite {
+  margin-top: 0;
+}
+
 .empty-card {
   display: flex;
   align-items: flex-start;
@@ -1069,6 +1097,7 @@ html {
   border-radius: var(--radius-sm);
   background: var(--surface-alt);
   color: var(--muted);
+  font: inherit;
   text-align: center;
   cursor: pointer;
   transition: border-color 140ms ease, background 140ms ease;
@@ -2648,11 +2677,59 @@ textarea.input {
   font-size: 11px;
 }
 
+/* ---------- 自定义勾选框 ---------- */
+.checkbox {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+.checkbox__input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.checkbox__box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--line-strong);
+  border-radius: 5px;
+  background: var(--surface);
+  color: #fff;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.checkbox.is-checked .checkbox__box {
+  border-color: var(--lime-deep);
+  background: var(--lime-deep);
+}
+
+.checkbox__input:focus-visible + .checkbox__box {
+  box-shadow: var(--focus);
+}
+
+.checkbox.is-disabled {
+  opacity: 0.55;
+}
+
+.checkbox.is-disabled .checkbox__input {
+  cursor: not-allowed;
+}
+
 .switch {
   position: relative;
   width: 38px;
   height: 22px;
   flex: 0 0 auto;
+  align-self: center;
 }
 
 .switch input {
@@ -2664,6 +2741,7 @@ textarea.input {
 }
 
 .switch i {
+  position: relative;
   display: block;
   width: 38px;
   height: 22px;
@@ -2673,15 +2751,19 @@ textarea.input {
   pointer-events: none;
 }
 
+/* 滑块绝对居中：不依赖行高/margin，避免 125%/150% 缩放下视觉偏上。 */
 .switch i::after {
   content: '';
-  display: block;
+  position: absolute;
+  top: 50%;
+  left: 2px;
   width: 18px;
   height: 18px;
-  margin: 2px;
+  margin: 0;
   border-radius: 50%;
   background: #fff;
   box-shadow: 0 1px 2px rgba(16, 24, 40, 0.2);
+  transform: translateY(-50%);
   transition: transform 140ms ease;
 }
 
@@ -2690,7 +2772,7 @@ textarea.input {
 }
 
 .switch input:checked + i::after {
-  transform: translateX(16px);
+  transform: translate(16px, -50%);
 }
 
 .switch input:focus-visible + i {
@@ -2701,6 +2783,87 @@ textarea.input {
 .import-table {
   max-height: 320px;
   overflow: auto;
+}
+
+/* ---------- 组卷：题目滚动容器 ---------- */
+.question-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 560px;
+  padding-right: 4px;
+  overflow-y: auto;
+}
+
+.question-row {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  padding: 9px 11px;
+  border: 1px solid var(--line-soft);
+  border-radius: 9px;
+  background: var(--surface-alt);
+  cursor: pointer;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+
+.question-row:hover {
+  border-color: var(--line-strong);
+  background: var(--surface);
+}
+
+.question-row .checkbox {
+  margin-top: 2px;
+}
+
+.question-more {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 2px 2px;
+  border-top: 1px dashed var(--line-soft);
+}
+
+/* 小字链接按钮（加载更多等）。 */
+.text-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--lime-text);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.text-link:hover {
+  text-decoration: underline;
+}
+
+.text-link:disabled {
+  color: var(--tertiary);
+  cursor: default;
+  text-decoration: none;
+}
+
+/* 导入弹窗：支持格式 chip */
+.format-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.format-chip {
+  padding: 2px 7px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface-alt);
+  color: var(--tertiary);
+  font-size: 10.5px;
+  line-height: 1.5;
 }
 
 .import-row--error {

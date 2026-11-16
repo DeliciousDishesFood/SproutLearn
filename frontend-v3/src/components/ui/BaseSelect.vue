@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // 自定义下拉：触发器 + 浮层列表（Teleport 到 body，固定定位，不挤占文档流）。
-import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, type Component } from 'vue'
 import { Check, ChevronDown } from 'lucide-vue-next'
 
 type SelectValue = string | number | boolean | null
@@ -19,8 +19,10 @@ const props = withDefaults(
     size?: 'sm' | 'md'
     ariaLabel?: string
     id?: string
+    /** 触发器左侧语义图标（如题库用 Library）。 */
+    icon?: Component
   }>(),
-  { placeholder: '请选择', disabled: false, size: 'md', ariaLabel: '', id: undefined },
+  { placeholder: '请选择', disabled: false, size: 'md', ariaLabel: '', id: undefined, icon: undefined },
 )
 
 const model = defineModel<any>({ default: null })
@@ -169,6 +171,9 @@ onBeforeUnmount(unbind)
       @click="toggle"
       @keydown="onKeydown"
     >
+      <span v-if="icon" class="select__icon" aria-hidden="true">
+        <component :is="icon" :size="14" />
+      </span>
       <span class="select__value" :class="{ 'is-placeholder': !selected }">
         {{ selected ? selected.label : placeholder }}
       </span>

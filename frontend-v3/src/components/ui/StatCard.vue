@@ -1,5 +1,8 @@
 <script setup lang="ts">
-withDefaults(
+import { computed } from 'vue'
+import CountUpNumber from '@/components/ui/CountUpNumber.vue'
+
+const props = withDefaults(
   defineProps<{
     label: string
     value: string | number
@@ -9,6 +12,9 @@ withDefaults(
   }>(),
   { hint: '', tag: '', tagTone: 'soft' },
 )
+
+// 数字走滚动动效；字符串（如「79%」）保持原样。
+const isNumeric = computed(() => typeof props.value === 'number' && Number.isFinite(props.value))
 </script>
 
 <template>
@@ -18,7 +24,10 @@ withDefaults(
       {{ label }}
     </div>
     <div class="stat__row">
-      <span class="stat__value">{{ value }}</span>
+      <span class="stat__value">
+        <CountUpNumber v-if="isNumeric" :value="Number(value)" />
+        <template v-else>{{ value }}</template>
+      </span>
       <span
         v-if="tag"
         class="stat__delta"

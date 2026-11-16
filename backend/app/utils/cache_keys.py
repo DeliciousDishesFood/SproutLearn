@@ -10,9 +10,16 @@ RATE_UPLOAD = "rate:upload:{teacher_id}"
 QQ_BIND_CODE = "qq:bind:code:{code}"
 QQ_BIND_STUDENT = "qq:bind:student:{student_id}"
 QQ_BIND_ATTEMPT = "qq:bind:attempt:{openid}"
+QQ_GROUP_BIND = "qq:group:bind:{code}"
 PARSE_LOCK = "lock:parse:{doc_id}"
 QUESTION_IMPORT = "question:import:{token}"
 QUOTE_RANDOM = "quote:random:{type}"
+EXPLAIN = "explain:{question_id}:{updated_at}"
+BOT_CHAT = "bot:chat:{openid}"
+ASK_SPROUT_COOLDOWN = "ask:sprout:cooldown:{student_id}"
+ASK_SPROUT_DAILY = "ask:sprout:daily:{student_id}:{date}"
+AI_IMPORT_DAILY = "rate:ai_import:{teacher_id}:{date}"
+AI_IMPORT_MINUTE = "rate:ai_import:minute:{teacher_id}:{minute}"
 
 
 def session_key(jti: str) -> str:
@@ -55,6 +62,10 @@ def qq_bind_attempt_key(openid: str) -> str:
     return QQ_BIND_ATTEMPT.format(openid=openid)
 
 
+def qq_group_bind_key(code: str) -> str:
+    return QQ_GROUP_BIND.format(code=code)
+
+
 def parse_lock_key(doc_id: int) -> str:
     return PARSE_LOCK.format(doc_id=doc_id)
 
@@ -65,3 +76,28 @@ def question_import_key(token: str) -> str:
 
 def quote_key(quote_type: str) -> str:
     return QUOTE_RANDOM.format(type=quote_type)
+
+
+def explain_key(question_id: int, updated_at: str) -> str:
+    return EXPLAIN.format(question_id=question_id, updated_at=updated_at)
+
+
+def bot_chat_key(openid: str) -> str:
+    return BOT_CHAT.format(openid=openid)
+
+
+
+def ask_sprout_cooldown_key(student_id: int) -> str:
+    return ASK_SPROUT_COOLDOWN.format(student_id=student_id)
+
+
+def ask_sprout_daily_key(student_id: int, day: str) -> str:
+    return ASK_SPROUT_DAILY.format(student_id=student_id, date=day)
+
+
+def ai_import_daily_key(teacher_id: int, day: str) -> str:
+    return AI_IMPORT_DAILY.format(teacher_id=teacher_id, date=day)
+
+
+def ai_import_minute_key(teacher_id: int, minute: str) -> str:
+    return AI_IMPORT_MINUTE.format(teacher_id=teacher_id, minute=minute)

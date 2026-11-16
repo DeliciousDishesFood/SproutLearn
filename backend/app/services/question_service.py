@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+import queue as sync_queue
 import re
+import threading
 from time import perf_counter
 from typing import Any
 
@@ -19,6 +21,7 @@ from app.repositories.question_repo import QuestionRepository
 from app.repositories.question_bank_repo import QuestionBankRepository
 from app.schemas.question import QuestionUpdateRequest
 from app.services import question_bank_service
+from app.services import question_ai_import
 from app.services.class_service import require_owned_class
 from app.services.question_import import (
     clear_preview,
@@ -30,6 +33,8 @@ from app.services.question_import import (
     store_preview,
 )
 from app.services.llm.router import build_router
+from app.services.llm.registry import build_chain
+from app.utils import cache_keys
 from app.utils.response import page_data
 from app.utils.time import fmt_dt, now_naive
 
@@ -101,6 +106,29 @@ def preview_import(
         "bank_name": bank.name if bank else None,
         "suggested_bank_name": suggested,
     }
+
+
+async def ai_preview_import(
+    db: Session,
+    current: CurrentUser,
+    *,
+    class_id: int,
+    content: bytes,
+    filename: str,
+    bank_id: int | None = None,
+    max_questions: int = 50,
+) -> dict[str, Any]:
+    """AI 智能识别预览的薄业务入口；重任务放线程，避免阻塞事件循环。"""
+    return await asyncio.to_thread(
+        question_ai_import.ai_preview,
+        db,
+        current,
+        class_id=class_id,
+        content=content,
+        filename=filename,
+        bank_id=bank_id,
+        max_questions=max_questions,
+    )
 
 
 def commit_import(
@@ -344,6 +372,89 @@ def _ai_explain(question: Question, *, stream: bool = False) -> str:
     return (result.content or "").strip()
 
 
+def _cache_key(question: Question) -> str:
+    stamp = question.updated_at.isoformat() if question.updated_at else "0"
+    return cache_keys.explain_key(question.id, stamp)
+
+
+def _cache_get(question: Question) -> str | None:
+    try:
+        from app.redis_client import get_redis_client
+
+        value = get_redis_client().get(_cache_key(question))
+        return value if value else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _cache_set(question: Question, content: str) -> None:
+    try:
+        from app.redis_client import get_redis_client
+
+        get_redis_client().setex(_cache_key(question), 600, content)
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _ai_explain_iter(question: Question):
+    """并发尝试厂商流，取最早到达的首 token，再持续输出该厂商；失败不缓存。"""
+    settings = get_settings()
+    explain_settings = settings.model_copy(
+        update={
+            "llm_timeout_seconds": max(1, int(settings.qq_bot_explain_timeout_seconds or 8)),
+            "llm_max_retries": 0,
+        }
+    )
+    messages = [
+        {"role": "system", "content": "你是青芽 SproutLearn 的讲评助手，只输出中文讲评。"},
+        {"role": "user", "content": _explain_prompt(question)},
+    ]
+    providers = [provider for provider in build_chain(explain_settings) if provider.available()]
+    if not providers:
+        return
+    queue: sync_queue.Queue = sync_queue.Queue()
+
+    def worker(provider) -> None:
+        name = getattr(provider, "name", "?")
+        try:
+            emitted = False
+            for chunk in provider.chat_stream(
+                messages, temperature=0.3, max_tokens=96
+            ):
+                if chunk:
+                    emitted = True
+                    queue.put(("chunk", name, chunk))
+            queue.put(("done" if emitted else "empty", name, None))
+        except Exception as exc:  # noqa: BLE001 - 尝试下一家
+            queue.put(("error", name, type(exc).__name__))
+
+    for provider in providers:
+        threading.Thread(target=worker, args=(provider,), daemon=True).start()
+
+    active: str | None = None
+    finished = 0
+    while finished < len(providers):
+        kind, name, value = queue.get()
+        if kind == "chunk":
+            active = name
+            yield str(value)
+            break
+        if kind in ("done", "empty", "error"):
+            finished += 1
+    if active is None:
+        return
+    while True:
+        kind, name, value = queue.get()
+        if name != active:
+            continue
+        if kind == "chunk":
+            yield str(value)
+        elif kind == "done":
+            return
+        elif kind in ("empty", "error"):
+            return
+
+
 def explain_question(db: Session, current: CurrentUser, *, question_id: int) -> dict[str, Any]:
     """同步讲评：保留原接口/原响应结构，复用同一模板与 AI 逻辑。"""
     question = get_explain_question(db, current, question_id=question_id)
@@ -388,27 +499,138 @@ def _split_ai(content: str, *, size: int = 320) -> list[str]:
 
 
 async def stream_explain(question: Question):
-    """SSE：先模板全文，再 AI 段落；20s 上限，失败直接 done，不抛流错误。"""
+    """SSE：模板先发；AI 真流式，首 token 6s、总 8s，失败只 done 降级。"""
     started = perf_counter()
+    total_timeout = max(1, int(get_settings().qq_bot_explain_timeout_seconds or 8))
     template = _template_explain(question)
-    yield _sse("meta", {"engine": "template", "model": None})
-    yield _sse("delta", {"content": template})
-    try:
-        content = await asyncio.wait_for(
-            asyncio.to_thread(_ai_explain, question, stream=True),
-            timeout=20,
-        )
-    except Exception as exc:  # noqa: BLE001 - 流内失败只降级
-        logger.warning("explain stream fallback {}: {}", type(exc).__name__, str(exc)[:200])
-        content = ""
-    if content:
-        for chunk in _split_ai(content):
-            yield _sse("delta", {"content": chunk})
+    yield _sse(
+        "meta",
+        {
+            "engine": "template",
+            "template_engine": "question_analysis",
+            "model": None,
+        },
+    )
+    yield _sse("delta", {"content": template, "engine": "template"})
+
+    cached = _cache_get(question)
+    if cached:
+        yield _sse("meta", {"engine": "llm", "cached": True})
+        yield _sse("delta", {"content": cached, "engine": "llm"})
         yield _sse(
             "done",
             {
                 "engine": "llm",
                 "degraded": False,
+                "cached": True,
+                "elapsed_ms": round((perf_counter() - started) * 1000),
+            },
+        )
+        return
+
+    queue: sync_queue.Queue = sync_queue.Queue()
+
+    def produce() -> None:
+        try:
+            for chunk in _ai_explain_iter(question):
+                queue.put(("chunk", chunk))
+            queue.put(("done", None))
+        except Exception as exc:  # noqa: BLE001
+            queue.put(("error", type(exc).__name__))
+
+    threading.Thread(target=produce, daemon=True).start()
+    deadline = started + total_timeout
+    first_timeout = min(6.0, max(0.1, deadline - perf_counter()))
+    content_parts: list[str] = []
+
+    def get_next(timeout: float):
+        try:
+            return queue.get(block=True, timeout=timeout)
+        except sync_queue.Empty:
+            raise asyncio.TimeoutError from None
+
+    try:
+        kind, value = await asyncio.wait_for(
+            asyncio.to_thread(get_next, first_timeout), timeout=first_timeout + 0.2
+        )
+        if kind == "error":
+            raise RuntimeError(str(value))
+        if kind == "chunk" and value:
+            content_parts.append(str(value))
+            yield _sse("delta", {"content": str(value), "engine": "llm"})
+        if kind != "done":
+            while True:
+                remaining = deadline - perf_counter()
+                if remaining <= 0:
+                    raise asyncio.TimeoutError
+                kind, value = await asyncio.wait_for(
+                    asyncio.to_thread(get_next, remaining), timeout=remaining + 0.2
+                )
+                if kind == "done":
+                    break
+                if kind == "error":
+                    raise RuntimeError(str(value))
+                if kind == "chunk" and value:
+                    content_parts.append(str(value))
+                    yield _sse("delta", {"content": str(value), "engine": "llm"})
+    except asyncio.TimeoutError:
+        logger.warning("explain stream timeout question_id={}", question.id)
+        if content_parts:
+            yield _sse(
+                "done",
+                {
+                    "engine": "llm",
+                    "degraded": True,
+                    "partial": True,
+                    "elapsed_ms": round((perf_counter() - started) * 1000),
+                },
+            )
+        else:
+            yield _sse(
+                "done",
+                {
+                    "engine": "template",
+                    "degraded": True,
+                    "elapsed_ms": round((perf_counter() - started) * 1000),
+                },
+            )
+        return
+    except Exception as exc:  # noqa: BLE001 - 流内失败只降级
+        logger.warning(
+            "explain stream fallback {}: {}",
+            type(exc).__name__,
+            str(exc)[:200],
+        )
+        if content_parts:
+            yield _sse(
+                "done",
+                {
+                    "engine": "llm",
+                    "degraded": True,
+                    "partial": True,
+                    "elapsed_ms": round((perf_counter() - started) * 1000),
+                },
+            )
+        else:
+            yield _sse(
+                "done",
+                {
+                    "engine": "template",
+                    "degraded": True,
+                    "elapsed_ms": round((perf_counter() - started) * 1000),
+                },
+            )
+        return
+
+    content = "".join(content_parts).strip()
+    if content:
+        _cache_set(question, content)
+        yield _sse(
+            "done",
+            {
+                "engine": "llm",
+                "degraded": False,
+                "cached": False,
                 "elapsed_ms": round((perf_counter() - started) * 1000),
             },
         )

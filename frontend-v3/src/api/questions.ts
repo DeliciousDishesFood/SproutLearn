@@ -141,6 +141,24 @@ export const questionsApi = {
     )
   },
 
+  /** v1.1：AI 智能识别预览；文件抽取 + LLM 结构化，最多 2 分钟。 */
+  aiPreview(
+    classId: number,
+    file: File,
+    bankId?: number | null,
+    maxQuestions = 50,
+  ): Promise<QuestionImportPreview> {
+    const formData = new FormData()
+    formData.append('file', file, file.name)
+    if (bankId !== undefined && bankId !== null) formData.append('bank_id', String(bankId))
+    formData.append('max_questions', String(maxQuestions))
+    return api.post<QuestionImportPreview>(
+      `/classes/${classId}/questions/import/ai-preview`,
+      formData,
+      { timeout: 120000, skipGlobalError: true },
+    )
+  },
+
   commitImport(
     classId: number,
     payload: QuestionImportCommitPayload,

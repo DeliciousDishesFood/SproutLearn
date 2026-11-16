@@ -1,0 +1,313 @@
+{
+  "shots": [
+    {
+      "name": "questions-import-template-1440",
+      "url": "http://127.0.0.1:5175/teacher/classes/501/questions"
+    },
+    {
+      "name": "questions-import-ai-1440",
+      "url": "http://127.0.0.1:5175/teacher/classes/501/questions"
+    },
+    {
+      "name": "questions-ai-preview-1440",
+      "url": "http://127.0.0.1:5175/teacher/classes/501/questions"
+    },
+    {
+      "name": "questions-ai-503-1440",
+      "url": "http://127.0.0.1:5175/teacher/classes/501/questions"
+    },
+    {
+      "name": "questions-bank-select-1440",
+      "url": "http://127.0.0.1:5175/teacher/classes/501/questions"
+    },
+    {
+      "name": "questions-import-ai-375",
+      "url": "http://127.0.0.1:5175/teacher/classes/501/questions"
+    },
+    {
+      "name": "paper-create-loadmore-1440",
+      "url": "http://127.0.0.1:5175/teacher/classes/501/papers/new"
+    },
+    {
+      "name": "paper-create-all-loaded-1440",
+      "url": "http://127.0.0.1:5175/teacher/classes/501/papers/new"
+    },
+    {
+      "name": "settings-switch-1440",
+      "url": "http://127.0.0.1:5175/teacher/classes/501/settings"
+    },
+    {
+      "name": "settings-switch-checked-1440",
+      "url": "http://127.0.0.1:5175/teacher/classes/501/settings"
+    },
+    {
+      "name": "teacher-dashboard-1440",
+      "url": "http://127.0.0.1:5175/teacher"
+    },
+    {
+      "name": "heatmap-months-1440",
+      "url": "http://127.0.0.1:5175/teacher"
+    },
+    {
+      "name": "heatmap-readout-chip-1440",
+      "url": "http://127.0.0.1:5175/teacher"
+    },
+    {
+      "name": "teacher-status-filter-1440",
+      "url": "http://127.0.0.1:5175/teacher"
+    },
+    {
+      "name": "teacher-status-empty-1440",
+      "url": "http://127.0.0.1:5175/teacher"
+    },
+    {
+      "name": "teacher-dashboard-375",
+      "url": "http://127.0.0.1:5175/teacher"
+    },
+    {
+      "name": "heatmap-months-375",
+      "url": "http://127.0.0.1:5175/teacher"
+    }
+  ],
+  "errors": [],
+  "aiTab": {
+    "hint": "支持 PDF / Word / PPT / Excel / CSV / TXT / Markdown；AI 会识别题型、题干、选项、答案与解析。",
+    "formats": [
+      "PDF",
+      "Word",
+      "PPT",
+      "Excel",
+      "CSV",
+      "TXT",
+      "Markdown"
+    ],
+    "hasNativeFileVisible": false,
+    "uploadZone": true
+  },
+  "aiPreview": {
+    "summary": "共 50 道，可导入 47 道，异常 3 道。 将自动创建题库：sql题库",
+    "meta": "AI 识别 引擎 LLM · 模型 deepseek-chat 来源 sql题库.xls · 18342 字",
+    "warnings": [
+      "检测到 2 处选项编号不规范，已自动修正。"
+    ],
+    "rows": 6,
+    "errors": 3,
+    "truncated": true,
+    "fileChip": "sql题库.xls · 12 B"
+  },
+  "ai503": {
+    "message": "AI 识别暂不可用，请稍后重试或改用模板导入。",
+    "switchButton": true,
+    "confirmDisabled": [
+      {
+        "text": "取消",
+        "disabled": false
+      },
+      {
+        "text": "确认导入 0 道",
+        "disabled": true
+      }
+    ]
+  },
+  "bankSelect": {
+    "ariaExpanded": "true",
+    "iconSvg": 1,
+    "chevronTransform": "matrix(-1, 0, 0, -1, 0, 0)",
+    "optionCount": 4,
+    "nativeSelectCount": 0
+  },
+  "mobileAI": {
+    "docScrollWidth": 365,
+    "innerWidth": 375,
+    "modalScrollWidth": 323,
+    "modalClientWidth": 323
+  },
+  "loadMoreInitial": {
+    "footer": "已加载 50 / 共 128 题 加载更多",
+    "scrollTop": 2986,
+    "hasLoadMoreButton": true,
+    "footerInsideContainer": true
+  },
+  "afterLoadOnce": {
+    "footer": "已加载 100 / 共 128 题 加载更多",
+    "scrollTop": 2986
+  },
+  "allLoaded": {
+    "footer": "已加载 128 / 共 128 题 已加载全部 128 题",
+    "hasLoadMoreButton": false,
+    "checkedBoxes": 128,
+    "nativeCheckboxes": 128
+  },
+  "switchMetrics": [
+    {
+      "checked": true,
+      "track": {
+        "width": 38,
+        "height": 22
+      },
+      "after": {
+        "width": "18px",
+        "height": "18px",
+        "top": "11px",
+        "transform": "matrix(1, 0, 0, 1, 16, -9)"
+      },
+      "topGap": 2,
+      "bottomGap": 2
+    },
+    {
+      "checked": false,
+      "track": {
+        "width": 38,
+        "height": 22
+      },
+      "after": {
+        "width": "18px",
+        "height": "18px",
+        "top": "11px",
+        "transform": "matrix(1, 0, 0, 1, 0, -9)"
+      },
+      "topGap": 2,
+      "bottomGap": 2
+    },
+    {
+      "checked": true,
+      "track": {
+        "width": 38,
+        "height": 22
+      },
+      "after": {
+        "width": "18px",
+        "height": "18px",
+        "top": "11px",
+        "transform": "matrix(1, 0, 0, 1, 16, -9)"
+      },
+      "topGap": 2,
+      "bottomGap": 2
+    }
+  ],
+  "dashboard": {
+    "hasQuoteStrip": true,
+    "pendingCardRemoved": true,
+    "statusFilters": [
+      "Python 期中考试",
+      "全部状态"
+    ],
+    "studentRows": 5,
+    "examRows": [
+      [
+        "陈知远",
+        "2026001",
+        "待复核",
+        "34 / 50",
+        "2026-11-15 20:06",
+        "去批改"
+      ],
+      [
+        "周慕青",
+        "2026002",
+        "已复核",
+        "46 / 50",
+        "2026-11-14 19:26",
+        "查看"
+      ],
+      [
+        "许星河",
+        "2026003",
+        "进行中",
+        "0 / 50",
+        "—",
+        "作答中"
+      ],
+      [
+        "沈予安",
+        "2026004",
+        "未开始",
+        "—",
+        "—",
+        "—"
+      ],
+      [
+        "顾南枝",
+        "2026005",
+        "未开始",
+        "—",
+        "—",
+        "—"
+      ]
+    ],
+    "months": [
+      {
+        "label": "8月",
+        "gridColumn": "1 / 2"
+      },
+      {
+        "label": "9月",
+        "gridColumn": "2 / 6"
+      },
+      {
+        "label": "10月",
+        "gridColumn": "6 / 10"
+      },
+      {
+        "label": "11月",
+        "gridColumn": "10 / 13"
+      }
+    ],
+    "statValues": [
+      "7",
+      "23",
+      "78%",
+      "31"
+    ],
+    "overflow": false
+  },
+  "readoutChip": {
+    "text": "11月3日 周二 作答 4 次 · 活跃 0 人",
+    "hasDot": true,
+    "ariaLive": "polite"
+  },
+  "statusFilter": {
+    "rows": [
+      [
+        "陈知远",
+        "2026001",
+        "待复核",
+        "34 / 50",
+        "2026-11-15 20:06",
+        "去批改"
+      ]
+    ],
+    "statusText": ""
+  },
+  "statusEmpty": {
+    "emptyText": "没有符合「待复核」的学生。",
+    "exam": "Python 月考 · 第二次",
+    "rows": 0
+  },
+  "mobileDashboard": {
+    "docScrollWidth": 365,
+    "innerWidth": 375,
+    "heatScrollWidth": 339,
+    "heatClientWidth": 339,
+    "statusTableScrollWidth": 620,
+    "statusTableClientWidth": 311,
+    "months": [
+      {
+        "label": "8月",
+        "gridColumn": "1 / 2"
+      },
+      {
+        "label": "9月",
+        "gridColumn": "2 / 6"
+      },
+      {
+        "label": "10月",
+        "gridColumn": "6 / 10"
+      },
+      {
+        "label": "11月",
+        "gridColumn": "10 / 13"
+      }
+    ]
+  }
+}

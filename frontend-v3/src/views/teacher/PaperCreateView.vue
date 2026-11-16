@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { Library } from 'lucide-vue-next'
 import BaseButton from '@/components/ui/BaseButton.vue'
+import BaseCheckbox from '@/components/ui/BaseCheckbox.vue'
 import BaseField from '@/components/ui/BaseField.vue'
 import BaseSelect from '@/components/ui/BaseSelect.vue'
 import { questionsApi } from '@/api/questions'
@@ -281,10 +283,10 @@ onMounted(async () => {
           <p v-else-if="banks.length === 0" class="notice">还没有题库，请先去题库页创建。</p>
           <div v-else class="stack" style="gap: 6px">
             <label v-for="bank in banks" :key="bank.id" class="check">
-              <input
-                type="checkbox"
-                :checked="form.bank_ids.includes(bank.id)"
-                @change="toggleBank(bank.id)"
+              <BaseCheckbox
+                :model-value="form.bank_ids.includes(bank.id)"
+                :aria-label="`选择题库 ${bank.name}`"
+                @update:model-value="toggleBank(bank.id)"
               />
               <span>{{ bank.name }}（{{ bank.question_count }} 题）</span>
             </label>
@@ -315,7 +317,13 @@ onMounted(async () => {
         <span class="card__meta">已选 {{ selectedCount }} 题</span>
       </header>
       <BaseField label="题库">
-        <BaseSelect v-model="form.bank_id" :options="bankOptions" placeholder="选择题库" aria-label="题库" />
+        <BaseSelect
+          v-model="form.bank_id"
+          :options="bankOptions"
+          :icon="Library"
+          placeholder="选择题库"
+          aria-label="题库"
+        />
       </BaseField>
       <BaseField label="搜索题目">
         <div class="row" style="gap: 8px">
@@ -333,18 +341,12 @@ onMounted(async () => {
       <p v-if="loadingQuestions && !loadingMore" class="loading-line">正在读取题目…</p>
       <p v-else-if="!selectedBank" class="notice">请选择题库。</p>
       <p v-else-if="questions.length === 0" class="notice">该题库还没有题目。</p>
-      <div v-else class="stack" style="gap: 8px; max-height: 560px; overflow-y: auto">
-        <label
-          v-for="item in questions"
-          :key="item.id"
-          class="notice"
-          style="display: flex; gap: 8px; align-items: flex-start; cursor: pointer"
-        >
-          <input
-            type="checkbox"
-            style="margin-top: 3px"
-            :checked="form.question_ids.includes(item.id)"
-            @change="toggleQuestion(item.id)"
+      <div v-else class="question-list">
+        <label v-for="item in questions" :key="item.id" class="question-row">
+          <BaseCheckbox
+            :model-value="form.question_ids.includes(item.id)"
+            :aria-label="`选择题目：${item.stem}`"
+            @update:model-value="toggleQuestion(item.id)"
           />
           <span style="min-width: 0">
             <span class="strong" style="display: block; font-size: 12.5px; line-height: 1.55">
@@ -356,12 +358,15 @@ onMounted(async () => {
             </span>
           </span>
         </label>
-      </div>
-      <div v-if="selectedBank && questions.length > 0" class="row row--wrap" style="justify-content: space-between">
-        <span class="small tertiary">已加载 {{ questions.length }} / 共 {{ questionTotal }} 题</span>
-        <BaseButton v-if="questions.length < questionTotal" :loading="loadingMore" @click="loadMore">
-          加载更多
-        </BaseButton>
+
+        <div class="question-more">
+          <span class="small tertiary">已加载 {{ questions.length }} / 共 {{ questionTotal }} 题</span>
+          <template v-if="questions.length < questionTotal">
+            <button v-if="!loadingMore" class="text-link" type="button" @click="loadMore">加载更多</button>
+            <span v-else class="small tertiary">正在加载…</span>
+          </template>
+          <span v-else class="small tertiary">已加载全部 {{ questionTotal }} 题</span>
+        </div>
       </div>
     </section>
 

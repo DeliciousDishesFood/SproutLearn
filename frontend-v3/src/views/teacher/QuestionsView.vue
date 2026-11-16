@@ -1,17 +1,18 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { Plus, Sparkles, Upload } from 'lucide-vue-next'
+import { Download, FileText, Library, Plus, Sparkles, Upload, X } from 'lucide-vue-next'
 import BaseBadge from '@/components/ui/BaseBadge.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseField from '@/components/ui/BaseField.vue'
 import BaseModal from '@/components/ui/BaseModal.vue'
 import BaseSelect from '@/components/ui/BaseSelect.vue'
+import BaseTabs from '@/components/ui/BaseTabs.vue'
 import PaginationBar from '@/components/ui/PaginationBar.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import { questionsApi } from '@/api/questions'
 import { banksApi } from '@/api/banks'
-import { toUserMessage } from '@/api/client'
+import { isApiError, toUserMessage } from '@/api/client'
 import type {
   QuestionBank,
   QuestionImportPreview,
@@ -25,6 +26,7 @@ import {
   QUESTION_TYPE_LABEL,
   formatAnswer,
   formatDateTime,
+  formatFileSize,
 } from '@/utils/format'
 import { useUiStore } from '@/stores/ui'
 import { useToast } from '@/composables/useToast'
@@ -265,51 +267,197 @@ async function remove(item: QuestionItem): Promise<void> {
 }
 
 /* ---------- 导入 ---------- */
+type ImportMode = 'template' | 'ai'
+
+const TEMPLATE_ACCEPT = '.xlsx,.xls,.csv,.json'
+const AI_ACCEPT = '.pdf,.docx,.pptx,.xlsx,.xls,.csv,.json,.txt,.md,.markdown'
+const TEMPLATE_EXTS = ['xlsx', 'xls', 'csv', 'json']
+const AI_EXTS = ['pdf', 'docx', 'pptx', 'xlsx', 'xls', 'csv', 'json', 'txt', 'md', 'markdown']
+const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'webp', 'gif']
+const MAX_IMPORT_SIZE = 20 * 1024 * 1024
+
 const importOpen = ref(false)
+const importMode = ref<ImportMode>('template')
 const importFile = ref<File | null>(null)
 const importBankId = ref('')
 const preview = ref<QuestionImportPreview | null>(null)
 const previewing = ref(false)
+const previewStage = ref('')
 const committing = ref(false)
 const importError = ref('')
+const importErrorCode = ref(0)
+const fileError = ref('')
+const dragActive = ref(false)
+const fileInput = ref<HTMLInputElement | null>(null)
+let stageTimer: ReturnType<typeof setTimeout> | null = null
+
+const modeTabs = [
+  { key: 'template', label: '模板导入' },
+  { key: 'ai', label: 'AI 智能识别' },
+]
+const importAccept = computed(() => (importMode.value === 'ai' ? AI_ACCEPT : TEMPLATE_ACCEPT))
+const modeFormats = computed(() =>
+  importMode.value === 'ai'
+    ? ['PDF', 'Word', 'PPT', 'Excel', 'CSV', 'TXT', 'Markdown']
+    : ['Excel', 'CSV', 'JSON'],
+)
+const modeHint = computed(() =>
+  importMode.value === 'ai'
+    ? '支持 PDF / Word / PPT / Excel / CSV / TXT / Markdown；AI 会识别题型、题干、选项、答案与解析。'
+    : '支持 Excel / CSV / JSON；表头不标准会失败，可改用 AI 智能识别。',
+)
+
+function clearStageTimer(): void {
+  if (stageTimer) {
+    clearTimeout(stageTimer)
+    stageTimer = null
+  }
+}
+
+function resetImportState(): void {
+  clearStageTimer()
+  importFile.value = null
+  preview.value = null
+  previewing.value = false
+  previewStage.value = ''
+  importError.value = ''
+  importErrorCode.value = 0
+  fileError.value = ''
+  dragActive.value = false
+}
 
 function openImport(): void {
-  importFile.value = null
+  importMode.value = 'template'
   importBankId.value = filters.bank_id || ''
-  preview.value = null
-  importError.value = ''
+  resetImportState()
   importOpen.value = true
 }
 
-function onImportFile(event: Event): void {
+function closeImport(): void {
+  clearStageTimer()
+  importOpen.value = false
+}
+
+function onModeChange(key: string): void {
+  const next: ImportMode = key === 'ai' ? 'ai' : 'template'
+  if (next === importMode.value) return
+  importMode.value = next
+  resetImportState()
+}
+
+function fileExt(name: string): string {
+  const index = name.lastIndexOf('.')
+  return index >= 0 ? name.slice(index + 1).toLowerCase() : ''
+}
+
+function applyFile(file: File | null): void {
+  resetImportState()
+  if (!file) return
+  if (file.size === 0) {
+    fileError.value = '这个文件是空的，请重新选择。'
+    return
+  }
+  if (file.size > MAX_IMPORT_SIZE) {
+    fileError.value = '文件超过 20 MB，请压缩或拆分后再导入。'
+    return
+  }
+  const ext = fileExt(file.name)
+  const allowed = importMode.value === 'ai' ? AI_EXTS : TEMPLATE_EXTS
+  if (!allowed.includes(ext)) {
+    fileError.value =
+      importMode.value === 'ai'
+        ? `暂不支持 .${ext || '未知'} 文件；请上传 PDF / Word / PPT / Excel / CSV / TXT / Markdown。`
+        : `暂不支持 .${ext || '未知'} 文件；模板导入支持 Excel / CSV / JSON，或改用 AI 智能识别。`
+    return
+  }
+  importFile.value = file
+}
+
+function pickFile(): void {
+  fileInput.value?.click()
+}
+
+function onFileChange(event: Event): void {
   const input = event.target as HTMLInputElement
-  importFile.value = input.files?.[0] ?? null
+  applyFile(input.files?.[0] ?? null)
+  input.value = ''
+}
+
+function onDrop(event: DragEvent): void {
+  dragActive.value = false
+  applyFile(event.dataTransfer?.files?.[0] ?? null)
+}
+
+function removeFile(): void {
+  resetImportState()
+}
+
+watch(importBankId, () => {
   preview.value = null
   importError.value = ''
+  importErrorCode.value = 0
+})
+
+function handlePreviewError(error: unknown): void {
+  const code = isApiError(error) ? error.code : 0
+  importErrorCode.value = code
+  if (code === 40001) {
+    fileError.value = isApiError(error) ? error.message : '文件不符合要求，请重新选择。'
+    return
+  }
+  if (code === 50301) {
+    importError.value = 'AI 识别暂不可用，请稍后重试或改用模板导入。'
+    return
+  }
+  if (code === 42901) {
+    importError.value = '识别太频繁，请稍后再试（每分钟 3 次、每天 30 次）。'
+    return
+  }
+  if (code === 42203) {
+    const ext = importFile.value ? fileExt(importFile.value.name) : ''
+    const base = isApiError(error) ? error.message : '文件内容无法识别'
+    importError.value = IMAGE_EXTS.includes(ext)
+      ? '图片识别暂未开放，请上传可复制文字的 PDF / Word / Excel / TXT 文件。'
+      : `${base} 请上传有文字层的 PDF / Word / Excel / TXT，或改用模板导入。`
+    return
+  }
+  importError.value = toUserMessage(error)
 }
 
 async function doPreview(): Promise<void> {
+  if (previewing.value) return
   if (!importFile.value) {
-    importError.value = '请先选择导入文件'
+    fileError.value = '请先选择导入文件'
     return
   }
   previewing.value = true
   importError.value = ''
+  importErrorCode.value = 0
+  fileError.value = ''
+  previewStage.value = importMode.value === 'ai' ? '正在读取文件…' : '正在校验文件…'
+  clearStageTimer()
+  if (importMode.value === 'ai') {
+    stageTimer = setTimeout(() => {
+      previewStage.value = '正在识别题目…'
+    }, 900)
+  }
   try {
-    preview.value = await questionsApi.previewImport(
-      classId.value,
-      importFile.value,
-      importBankId.value ? Number(importBankId.value) : null,
-    )
+    const bankId = importBankId.value ? Number(importBankId.value) : null
+    preview.value =
+      importMode.value === 'ai'
+        ? await questionsApi.aiPreview(classId.value, importFile.value, bankId)
+        : await questionsApi.previewImport(classId.value, importFile.value, bankId)
   } catch (error) {
-    importError.value = toUserMessage(error)
+    handlePreviewError(error)
   } finally {
+    clearStageTimer()
     previewing.value = false
+    previewStage.value = ''
   }
 }
 
 async function doCommit(): Promise<void> {
-  if (!preview.value) return
+  if (!preview.value || committing.value) return
   committing.value = true
   importError.value = ''
   try {
@@ -318,8 +466,8 @@ async function doCommit(): Promise<void> {
       bank_id: importBankId.value ? Number(importBankId.value) : null,
     })
     toast.success(`已导入 ${result.inserted} 道题目`)
-    importOpen.value = false
-    preview.value = null
+    closeImport()
+    resetImportState()
     await Promise.all([loadBanks(), loadQuestions()])
   } catch (error) {
     importError.value = toUserMessage(error)
@@ -327,6 +475,62 @@ async function doCommit(): Promise<void> {
     committing.value = false
   }
 }
+
+/** 前端生成 CSV 模板，不请求后端。 */
+function downloadTemplate(): void {
+  const lines = [
+    'type,stem,options,answer,analysis,knowledge_tag,difficulty',
+    'single,"Python 中用于定义函数的关键字是？","A.def|B.func|C.main|D.class",A,"def 用于定义函数。",Python 基础,easy',
+  ]
+  const blob = new Blob([`\uFEFF${lines.join('\r\n')}\r\n`], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = '青芽题库导入模板.csv'
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+}
+
+interface PreviewSummaryRow {
+  type: string
+  stem: string
+  answer: string
+}
+
+/** 模板预览给 preview（平铺字段），AI 预览可能给 rows（含 normalized），两种都兼容。 */
+function normalizedRecord(record: Record<string, unknown>): Record<string, unknown> {
+  const normalized = record.normalized
+  if (normalized && typeof normalized === 'object') return normalized as Record<string, unknown>
+  return record
+}
+
+const previewSummaries = computed<PreviewSummaryRow[]>(() => {
+  const data = preview.value
+  if (!data) return []
+  const source = (data.preview && data.preview.length > 0 ? data.preview : data.rows ?? []) as Array<
+    Record<string, unknown>
+  >
+  return source
+    .slice(0, 6)
+    .map((raw) => {
+      const row = normalizedRecord(raw)
+      const type = String(row.type ?? '')
+      return {
+        type,
+        stem: String(row.stem ?? ''),
+        answer: formatAnswer(row.answer, type ? (type as QuestionType) : undefined),
+      }
+    })
+    .filter((row) => row.stem)
+})
+
+function typeLabel(type: string): string {
+  return QUESTION_TYPE_LABEL[type as QuestionType] ?? '题目'
+}
+
+onBeforeUnmount(clearStageTimer)
 
 /* ---------- 讲评 ---------- */
 const explainOpen = ref(false)
@@ -381,7 +585,7 @@ onMounted(async () => {
   <section class="card stack">
     <form class="form-row" @submit.prevent="applyFilters">
       <BaseField label="题库">
-        <BaseSelect v-model="filters.bank_id" :options="bankFilterOptions" aria-label="按题库筛选" />
+        <BaseSelect v-model="filters.bank_id" :options="bankFilterOptions" :icon="Library" aria-label="按题库筛选" />
       </BaseField>
       <BaseField label="题型">
         <BaseSelect v-model="filters.type" :options="typeFilterOptions" aria-label="按题型筛选" />
@@ -468,7 +672,7 @@ onMounted(async () => {
     <div class="form">
       <div class="form-row">
         <BaseField label="题库" required>
-          <BaseSelect v-model="editForm.bank_id" :options="bankEditOptions" aria-label="所属题库" />
+          <BaseSelect v-model="editForm.bank_id" :options="bankEditOptions" :icon="Library" aria-label="所属题库" />
         </BaseField>
         <BaseField label="题型">
           <BaseSelect
@@ -532,36 +736,124 @@ onMounted(async () => {
     title="导入题目"
     description="先预览校验，再确认入库；预览结果不会直接写入题库。"
     wide
-    @close="importOpen = false"
+    @close="closeImport"
   >
     <div class="form">
+      <BaseTabs :model-value="importMode" :items="modeTabs" @update:model-value="onModeChange" />
+      <p class="small muted" style="margin: 0">{{ modeHint }}</p>
+      <p v-if="importMode === 'ai'" class="small tertiary" style="margin: 0">
+        AI 识别可能出错，请预览确认后再入库。
+      </p>
+
       <div class="form-row">
         <BaseField label="导入文件">
-          <input class="input" type="file" accept=".xlsx,.xls,.csv,.json" @change="onImportFile" />
+          <input
+            ref="fileInput"
+            class="upload-input"
+            type="file"
+            :accept="importAccept"
+            tabindex="-1"
+            aria-hidden="true"
+            @change="onFileChange"
+          />
+          <button
+            v-if="!importFile"
+            type="button"
+            class="upload-zone"
+            :class="{ 'is-dragging': dragActive }"
+            @click="pickFile"
+            @dragover.prevent="dragActive = true"
+            @dragleave.prevent="dragActive = false"
+            @drop.prevent="onDrop"
+          >
+            <Upload :size="18" aria-hidden="true" />
+            <strong>点击选择文件，或拖拽到这里</strong>
+            <span class="small tertiary">单个文件，最大 20 MB</span>
+          </button>
+          <div v-else class="upload-file">
+            <span class="upload-file__name">
+              <FileText :size="14" aria-hidden="true" />
+              {{ importFile.name }}
+              <span class="tertiary">· {{ formatFileSize(importFile.size) }}</span>
+            </span>
+            <button class="upload-file__remove" type="button" aria-label="移除文件" @click="removeFile">
+              <X :size="14" aria-hidden="true" />
+            </button>
+          </div>
+          <p v-if="fileError" class="field__error">{{ fileError }}</p>
+          <div class="format-chips">
+            <span v-for="format in modeFormats" :key="format" class="format-chip">{{ format }}</span>
+          </div>
         </BaseField>
         <BaseField label="目标题库" hint="不选则导入后自动建「导入题库-日期」">
-          <BaseSelect v-model="importBankId" :options="importBankOptions" aria-label="导入到题库" />
+          <BaseSelect v-model="importBankId" :options="importBankOptions" :icon="Library" aria-label="导入到题库" />
         </BaseField>
       </div>
 
-      <div class="row">
-        <BaseButton :loading="previewing" @click="doPreview">预览校验</BaseButton>
-        <span v-if="importFile" class="small tertiary">{{ importFile.name }}</span>
+      <div class="row row--wrap">
+        <BaseButton v-if="importMode === 'template'" :loading="previewing" @click="doPreview">
+          预览校验
+        </BaseButton>
+        <BaseButton v-else variant="primary" :loading="previewing" @click="doPreview">
+          <Sparkles :size="14" aria-hidden="true" />AI 识别并预览
+        </BaseButton>
+        <span v-if="previewing" class="small tertiary">{{ previewStage }}</span>
+        <button class="text-link" type="button" @click="downloadTemplate">
+          <Download :size="12" aria-hidden="true" />下载 CSV 模板
+        </button>
       </div>
 
       <p v-if="importError" class="form-error">{{ importError }}</p>
+      <div v-if="importErrorCode === 50301 || importErrorCode === 42203" class="row row--wrap">
+        <BaseButton size="sm" @click="onModeChange('template')">切换到模板导入</BaseButton>
+      </div>
 
       <template v-if="preview">
         <div class="notice notice--lime">
-          共 {{ preview.total }} 行，可导入 {{ preview.valid_count }} 行，异常
-          {{ preview.error_count }} 行。
+          共 {{ preview.total }} 道，可导入 {{ preview.valid_count }} 道，异常
+          {{ preview.error_count }} 道。
           <template v-if="preview.bank_name">目标题库：{{ preview.bank_name }}</template>
           <template v-else-if="preview.suggested_bank_name">
             将自动创建题库：{{ preview.suggested_bank_name }}
           </template>
         </div>
 
-        <div v-if="preview.mapping" class="table-wrap">
+        <div v-if="preview.mode === 'ai'" class="row row--wrap ai-meta">
+          <BaseBadge tone="lime"><Sparkles :size="11" aria-hidden="true" />AI 识别</BaseBadge>
+          <span class="small tertiary">
+            引擎 {{ preview.engine === 'llm' ? 'LLM' : preview.engine || '未知' }}
+            <template v-if="preview.model"> · 模型 {{ preview.model }}</template>
+          </span>
+          <BaseBadge v-if="preview.degraded" tone="amber">已降级</BaseBadge>
+          <span v-if="preview.source_name" class="small tertiary">
+            来源 {{ preview.source_name }}
+            <template v-if="preview.source_chars"> · {{ preview.source_chars }} 字</template>
+          </span>
+        </div>
+
+        <div v-if="preview.warnings?.length" class="notice notice--warn">
+          <p class="strong">识别提示</p>
+          <ul style="margin: 6px 0 0; padding-left: 18px">
+            <li v-for="(warning, index) in preview.warnings" :key="index">{{ warning }}</li>
+          </ul>
+        </div>
+
+        <p v-if="preview.truncated" class="notice notice--warn">
+          文件较长，本次只识别前 {{ preview.total }} 道；剩余请分批导入。
+        </p>
+
+        <div v-if="previewSummaries.length" class="import-preview">
+          <p class="small muted" style="margin: 0">题目摘要（前 {{ previewSummaries.length }} 道）</p>
+          <ul class="import-preview__list">
+            <li v-for="(row, index) in previewSummaries" :key="index" class="import-preview__row">
+              <BaseBadge tone="plain">{{ typeLabel(row.type) }}</BaseBadge>
+              <span class="import-preview__stem">{{ row.stem }}</span>
+              <span class="small tertiary">答案 {{ row.answer }}</span>
+            </li>
+          </ul>
+        </div>
+
+        <div v-if="preview.mapping && Object.keys(preview.mapping).length" class="table-wrap">
           <table class="table">
             <thead><tr><th>源列</th><th>标准字段</th><th>匹配方式</th></tr></thead>
             <tbody>
@@ -582,10 +874,14 @@ onMounted(async () => {
             </li>
           </ul>
         </div>
+
+        <p v-if="preview.valid_count === 0" class="small tertiary" style="margin: 0">
+          没有可导入的题目：请按提示修正文件后重新预览，或换一个文件。
+        </p>
       </template>
     </div>
     <template #footer>
-      <BaseButton @click="importOpen = false">取消</BaseButton>
+      <BaseButton @click="closeImport">取消</BaseButton>
       <BaseButton
         variant="primary"
         :loading="committing"
@@ -609,6 +905,52 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+.upload-file__name {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.ai-meta {
+  align-items: center;
+  gap: 8px;
+}
+
+.import-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.import-preview__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.import-preview__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 7px 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: var(--surface-alt);
+}
+
+.import-preview__stem {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .option-list {
   display: flex;
   flex-direction: column;

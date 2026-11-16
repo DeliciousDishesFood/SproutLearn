@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.deps import CurrentUser, get_current_user, get_db, require_teacher
+from app.exceptions import AppException, ErrorCode
 from app.schemas.question import QuestionUpdateRequest
 from app.services import question_service
 from app.utils.response import success
@@ -35,6 +36,35 @@ async def preview_import(
             content=content,
             filename=file.filename or "",
             bank_id=bank_id,
+        )
+    )
+
+
+@router.post("/classes/{class_id}/questions/import/ai-preview")
+async def ai_preview_import(
+    class_id: int,
+    file: UploadFile = File(...),
+    bank_id: int | None = Form(default=None),
+    max_questions: int = Form(default=50, ge=1, le=100),
+    current: CurrentUser = Depends(require_teacher),
+    db: Session = Depends(get_db),
+):
+    """AI 智能识别预览：PDF/Word/PPT/Excel/CSV/JSON/TXT/MD，不落库。"""
+    content = await file.read()
+    await file.close()
+    if len(content) > 20 * 1024 * 1024:
+        raise AppException(
+            ErrorCode.VALIDATION_ERROR, "文件超过 20MB，请拆分后重试", http_status=400
+        )
+    return success(
+        await question_service.ai_preview_import(
+            db,
+            current,
+            class_id=class_id,
+            content=content,
+            filename=file.filename or "",
+            bank_id=bank_id,
+            max_questions=max_questions,
         )
     )
 

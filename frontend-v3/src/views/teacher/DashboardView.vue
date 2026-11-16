@@ -8,6 +8,7 @@ import HeatDots from '@/components/ui/HeatDots.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import BaseSkeleton from '@/components/ui/BaseSkeleton.vue'
 import BaseSelect from '@/components/ui/BaseSelect.vue'
+import StudentStatusTable from '@/components/business/StudentStatusTable.vue'
 import { classesApi } from '@/api/classes'
 import { workbenchApi } from '@/api/workbench'
 import { notificationsApi } from '@/api/notifications'
@@ -107,11 +108,6 @@ function switchClass(value: unknown): void {
   ui.setCurrentClassId(next)
 }
 
-function goCreatePaper(): void {
-  if (!currentClassId.value) return
-  void router.push(`/teacher/classes/${currentClassId.value}/papers/new`)
-}
-
 watch(currentClassId, () => {
   void loadWorkbench()
 })
@@ -137,6 +133,7 @@ onMounted(async () => {
         <BaseSelect
           :model-value="currentClassId ? String(currentClassId) : ''"
           :options="classes.map((item) => ({ label: item.class_name, value: String(item.id) }))"
+          :icon="Users"
           size="sm"
           aria-label="切换班级"
           @update:model-value="switchClass"
@@ -245,29 +242,12 @@ onMounted(async () => {
       </section>
     </div>
 
-    <div class="columns columns--even">
-      <blockquote class="card quote-card">
-        <p>“{{ quote?.text ?? '把复杂讲简单，把简单讲深刻。' }}”</p>
-        <cite>{{ quote?.from ?? '青芽教学手记' }}</cite>
-      </blockquote>
+    <StudentStatusTable :class-id="currentClassId" />
 
-      <section v-if="(workbench?.pending_review ?? 0) > 0" class="card stack">
-        <header class="card__head">
-          <h2>待复核题目</h2>
-          <span class="card__meta">{{ workbench?.pending_review }} 道</span>
-        </header>
-        <p class="small tertiary">顶部统计按题目计数；进入批改页逐题复核。</p>
-        <RouterLink class="btn btn--primary" :to="reviewHref">去批改</RouterLink>
-      </section>
-
-      <EmptyState
-        v-else
-        title="暂无待复核题目"
-        description="提交并完成复核后，这里会清零。"
-        action-label="去组卷"
-        @action="goCreatePaper"
-      />
-    </div>
+    <blockquote class="card quote-card quote-card--strip">
+      <p>“{{ quote?.text ?? '把复杂讲简单，把简单讲深刻。' }}”</p>
+      <cite>{{ quote?.from ?? '青芽教学手记' }}</cite>
+    </blockquote>
 
     <footer class="foot">青芽 SproutLearn · 教师工作台</footer>
   </template>

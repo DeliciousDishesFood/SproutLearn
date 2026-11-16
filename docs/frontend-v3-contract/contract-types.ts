@@ -341,6 +341,19 @@ export interface QuestionImportPreview {
   bank_name?: string | null
   /** M3.1：未指定题库时用文件名去后缀给出的建议库名。 */
   suggested_bank_name?: string
+  /** v1.1 AI 智能识别预览：AI 预览为 'ai'；旧模板预览不返回或返回 'template'。 */
+  mode?: 'template' | 'ai'
+  engine?: 'llm' | 'template' | string
+  /** 实际命中模型；未知为 null。 */
+  model?: string | null
+  /** 是否发生 provider 降级。 */
+  degraded?: boolean
+  /** 非阻断提示，前端必须展示。 */
+  warnings?: string[]
+  source_name?: string
+  source_chars?: number
+  /** 文本或题数被截断；warnings 必须说明原因。 */
+  truncated?: boolean
 }
 
 /** 提交入参：只带 token 走服务端预览结果；带 rows 时用前端编辑后的行重新校验。 */
