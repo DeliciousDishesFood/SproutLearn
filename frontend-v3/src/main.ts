@@ -22,6 +22,8 @@ const ui = useUiStore(pinia)
 window.addEventListener(SESSION_EXPIRED_EVENT, (event) => {
   const detail = (event as CustomEvent<{ message?: string }>).detail
   auth.clear()
+  // 会话失效同时清掉持久化班级 ID，避免切换后端后拿旧 ID 继续请求。
+  ui.setCurrentClassId(null)
   ui.toast(detail?.message ?? '登录已过期，请重新登录', 'error')
   const current = router.currentRoute.value
   if (current.meta.role !== 'public') {
@@ -30,3 +32,29 @@ window.addEventListener(SESSION_EXPIRED_EVENT, (event) => {
 })
 
 app.mount('#app')
+
+/* 离屏骨架屏暂停：骨架屏只在视口内播放轻 opacity，减少无意义动画开销。 */
+const skeletonObserver = new IntersectionObserver(
+  (entries) => {
+    entries.forEach((entry) => {
+      entry.target.classList.toggle('is-offscreen', !entry.isIntersecting)
+    })
+  },
+  { rootMargin: '80px' },
+)
+
+const observeSkeletons = (root: ParentNode): void => {
+  root.querySelectorAll('.skeleton').forEach((el) => skeletonObserver.observe(el))
+}
+
+observeSkeletons(document)
+new MutationObserver((records) => {
+  records.forEach((record) => {
+    record.addedNodes.forEach((node) => {
+      if (node instanceof HTMLElement) {
+        if (node.classList.contains('skeleton')) skeletonObserver.observe(node)
+        observeSkeletons(node)
+      }
+    })
+  })
+}).observe(document.body, { childList: true, subtree: true })

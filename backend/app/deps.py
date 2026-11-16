@@ -108,6 +108,21 @@ def get_token_claims(
     return payload
 
 
+def get_token_claims_optional(
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
+) -> dict | None:
+    """登出用：无 token/坏 token 也返回 None，由路由按幂等成功处理。"""
+    if credentials is None or not credentials.credentials:
+        return None
+    try:
+        payload = decode_access_token(credentials.credentials)
+    except (TokenExpiredError, TokenInvalidError):
+        return None
+    if not payload.get("jti") or not payload.get("sub"):
+        return None
+    return payload
+
+
 def require_teacher(current: CurrentUser = Depends(get_current_user)) -> CurrentUser:
     """教师角色依赖；学生调用教师接口返回 40301。"""
     if current.role != "teacher":

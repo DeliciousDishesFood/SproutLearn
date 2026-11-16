@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   Bell,
@@ -20,8 +20,10 @@ import {
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 import { notificationsApi } from '@/api/notifications'
+import { classesApi } from '@/api/classes'
 import { useToast } from '@/composables/useToast'
 import { useTheme } from '@/composables/useTheme'
+import { useFocusTrap } from '@/composables/useFocusTrap'
 
 interface NavItem {
   label: string
@@ -38,7 +40,17 @@ const router = useRouter()
 const toast = useToast()
 const { theme, toggle: toggleTheme } = useTheme()
 const menuOpen = ref(false)
+const drawerPanel = ref<HTMLElement | null>(null)
 const themeLabel = computed(() => (theme.value === 'dark' ? '切换到浅色主题' : '切换到深色主题'))
+
+// 移动抽屉：与弹窗共用焦点陷阱（Escape、焦点圈定、关闭恢复、锁定滚动）。
+useFocusTrap({
+  active: () => menuOpen.value,
+  container: drawerPanel,
+  onEscape: () => {
+    menuOpen.value = false
+  },
+})
 
 const classId = computed(() => {
   const param = Number(route.params.classId)
@@ -145,20 +157,27 @@ async function loadUnread(): Promise<void> {
   }
 }
 
+// 旧班级 ID 可能来自上一套后端：按当前 /classes 列表回落，避免后续请求 404。
+async function syncCurrentClass(): Promise<void> {
+  if (!auth.isTeacher || !ui.currentClassId) return
+  try {
+    const result = await classesApi.list({ page: 1, page_size: 50 })
+    if (!result.list.some((item) => item.id === ui.currentClassId)) {
+      ui.setCurrentClassId(result.list[0]?.id ?? null)
+    }
+  } catch {
+    // 列表失败不阻断导航，页面自身会展示错误
+  }
+}
+
 watch(() => route.fullPath, () => {
   menuOpen.value = false
   void loadUnread()
 })
 
-// 移动端抽屉打开时锁住页面滚动，关闭或卸载时恢复。
-watch(menuOpen, (open) => {
-  document.body.style.overflow = open ? 'hidden' : ''
-})
-
-onMounted(loadUnread)
-
-onBeforeUnmount(() => {
-  document.body.style.overflow = ''
+onMounted(() => {
+  void loadUnread()
+  void syncCurrentClass()
 })
 </script>
 
@@ -261,7 +280,7 @@ onBeforeUnmount(() => {
     <Teleport to="body">
       <div v-if="menuOpen" class="mobile-drawer">
         <div class="mobile-drawer__backdrop" @click="menuOpen = false" />
-        <div class="mobile-drawer__panel" role="dialog" aria-modal="true" aria-label="主导航">
+        <div ref="drawerPanel" class="mobile-drawer__panel" role="dialog" aria-modal="true" aria-label="主导航">
           <header class="mobile-drawer__head">
             <RouterLink class="side-brand" to="/" @click="menuOpen = false">
               <span class="side-brand__mark" aria-hidden="true"><Sprout :size="16" /></span>
@@ -315,7 +334,7 @@ onBeforeUnmount(() => {
 .mobile-drawer {
   position: fixed;
   inset: 0;
-  z-index: 90;
+  z-index: var(--z-drawer);
 }
 
 .mobile-drawer__backdrop {

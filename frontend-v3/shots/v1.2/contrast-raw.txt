@@ -1,0 +1,228 @@
+﻿PASS  light   18.34  ≥4.5  正文 text / surface
+PASS  light    4.83  ≥4.5  辅助 muted / surface
+PASS  light    4.93  ≥4.5  辅助 text-3 / surface
+PASS  light    4.55  ≥4.5  辅助 muted / surface-alt
+PASS  light    4.64  ≥4.5  辅助 text-3 / surface-alt
+PASS  light    4.64  ≥4.5  表头 text-3 / surface-alt
+PASS  light   16.96  ≥4.5  正文 text / bg
+PASS  light    6.57  ≥4.5  危险 danger / surface
+PASS  light    5.59  ≥4.5  焦点轮廓 lime-text / surface
+PASS  light    5.26  ≥4.5  焦点轮廓 lime-text / surface-alt
+PASS  light   18.34  ≥3  大标题 text / surface（≥3）
+PASS  dark    15.04  ≥4.5  正文 text / surface
+PASS  dark     7.59  ≥4.5  辅助 muted / surface
+PASS  dark     6.89  ≥4.5  辅助 text-3 / surface
+PASS  dark     7.14  ≥4.5  辅助 muted / surface-alt
+PASS  dark     6.48  ≥4.5  辅助 text-3 / surface-alt
+PASS  dark     6.48  ≥4.5  表头 text-3 / surface-alt
+PASS  dark    16.42  ≥4.5  正文 text / bg
+PASS  dark     8.76  ≥4.5  危险 danger / surface
+PASS  dark    13.34  ≥4.5  焦点轮廓 lime-text / surface
+PASS  dark    12.55  ≥4.5  焦点轮廓 lime-text / surface-alt
+PASS  dark    15.04  ≥3  大标题 text / surface（≥3）
+
+22/22 通过
+{
+  "generatedAt": "2026-11-16T08:06:34.988Z",
+  "failed": 0,
+  "results": [
+    {
+      "theme": "light",
+      "label": "正文 text / surface",
+      "fg": "#10151B",
+      "bg": "#FFFFFF",
+      "ratio": 18.34,
+      "min": 4.5,
+      "pass": true
+    },
+    {
+      "theme": "light",
+      "label": "辅助 muted / surface",
+      "fg": "#6B7280",
+      "bg": "#FFFFFF",
+      "ratio": 4.83,
+      "min": 4.5,
+      "pass": true
+    },
+    {
+      "theme": "light",
+      "label": "辅助 text-3 / surface",
+      "fg": "#687180",
+      "bg": "#FFFFFF",
+      "ratio": 4.93,
+      "min": 4.5,
+      "pass": true
+    },
+    {
+      "theme": "light",
+      "label": "辅助 muted / surface-alt",
+      "fg": "#6B7280",
+      "bg": "#F7F8FA",
+      "ratio": 4.55,
+      "min": 4.5,
+      "pass": true
+    },
+    {
+      "theme": "light",
+      "label": "辅助 text-3 / surface-alt",
+      "fg": "#687180",
+      "bg": "#F7F8FA",
+      "ratio": 4.64,
+      "min": 4.5,
+      "pass": true
+    },
+    {
+      "theme": "light",
+      "label": "表头 text-3 / surface-alt",
+      "fg": "#687180",
+      "bg": "#F7F8FA",
+      "ratio": 4.64,
+      "min": 4.5,
+      "pass": true
+    },
+    {
+      "theme": "light",
+      "label": "正文 text / bg",
+      "fg": "#10151B",
+      "bg": "#F5F6F8",
+      "ratio": 16.96,
+      "min": 4.5,
+      "pass": true
+    },
+    {
+      "theme": "light",
+      "label": "危险 danger / surface",
+      "fg": "#B42318",
+      "bg": "#FFFFFF",
+      "ratio": 6.57,
+      "min": 4.5,
+      "pass": true
+    },
+    {
+      "theme": "light",
+      "label": "焦点轮廓 lime-text / surface",
+      "fg": "#4C7300",
+      "bg": "#FFFFFF",
+      "ratio": 5.59,
+      "min": 4.5,
+      "pass": true
+    },
+    {
+      "theme": "light",
+      "label": "焦点轮廓 lime-text / surface-alt",
+      "fg": "#4C7300",
+      "bg": "#F7F8FA",
+      "ratio": 5.26,
+      "min": 4.5,
+      "pass": true
+    },
+    {
+      "theme": "light",
+      "label": "大标题 text / surface（≥3）",
+      "fg": "#10151B",
+      "bg": "#FFFFFF",
+      "ratio": 18.34,
+      "min": 3,
+      "pass": true
+    },
+    {
+      "theme": "dark",
+      "label": "正文 text / surface",
+      "fg": "#E9ECF0",
+      "bg": "#14181D",
+      "ratio": 15.04,
+      "min": 4.5,
+      "pass": true
+    },
+    {
+      "theme": "dark",
+      "label": "辅助 muted / surface",
+      "fg": "#A1AAB6",
+      "bg": "#14181D",
+      "ratio": 7.59,
+      "min": 4.5,
+      "pass": true
+    },
+    {
+      "theme": "dark",
+      "label": "辅助 text-3 / surface",
+      "fg": "#98A2AE",
+      "bg": "#14181D",
+      "ratio": 6.89,
+      "min": 4.5,
+      "pass": true
+    },
+    {
+      "theme": "dark",
+      "label": "辅助 muted / surface-alt",
+      "fg": "#A1AAB6",
+      "bg": "#191E24",
+      "ratio": 7.14,
+      "min": 4.5,
+      "pass": true
+    },
+    {
+      "theme": "dark",
+      "label": "辅助 text-3 / surface-alt",
+      "fg": "#98A2AE",
+      "bg": "#191E24",
+      "ratio": 6.48,
+      "min": 4.5,
+      "pass": true
+    },
+    {
+      "theme": "dark",
+      "label": "表头 text-3 / surface-alt",
+      "fg": "#98A2AE",
+      "bg": "#191E24",
+      "ratio": 6.48,
+      "min": 4.5,
+      "pass": true
+    },
+    {
+      "theme": "dark",
+      "label": "正文 text / bg",
+      "fg": "#E9ECF0",
+      "bg": "#0B0D10",
+      "ratio": 16.42,
+      "min": 4.5,
+      "pass": true
+    },
+    {
+      "theme": "dark",
+      "label": "危险 danger / surface",
+      "fg": "#FF9B8C",
+      "bg": "#14181D",
+      "ratio": 8.76,
+      "min": 4.5,
+      "pass": true
+    },
+    {
+      "theme": "dark",
+      "label": "焦点轮廓 lime-text / surface",
+      "fg": "#BEEF63",
+      "bg": "#14181D",
+      "ratio": 13.34,
+      "min": 4.5,
+      "pass": true
+    },
+    {
+      "theme": "dark",
+      "label": "焦点轮廓 lime-text / surface-alt",
+      "fg": "#BEEF63",
+      "bg": "#191E24",
+      "ratio": 12.55,
+      "min": 4.5,
+      "pass": true
+    },
+    {
+      "theme": "dark",
+      "label": "大标题 text / surface（≥3）",
+      "fg": "#E9ECF0",
+      "bg": "#14181D",
+      "ratio": 15.04,
+      "min": 3,
+      "pass": true
+    }
+  ]
+}

@@ -76,8 +76,8 @@ defineEmits<{ (event: 'delete', item: KnowledgeDocListItem): void }>()
   display: flex;
   flex-wrap: wrap;
   gap: 6px 12px;
-  color: var(--tertiary);
-  font-size: 11px;
+  color: var(--text-3);
+  font-size: 11.5px;
 }
 
 .doc-card__error {

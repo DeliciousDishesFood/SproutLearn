@@ -1,4 +1,5 @@
 <script setup lang="ts">
+// 学习热力：52 周单块 SVG、周日对齐、未来格不计数；月份按列首左对齐。
 import { computed, nextTick, ref } from 'vue'
 import type { ActivityDay } from '@/api/contract'
 import CountUpNumber from '@/components/ui/CountUpNumber.vue'
@@ -9,31 +10,54 @@ const props = withDefaults(
     weeks?: number
     role: 'teacher' | 'student'
   }>(),
-  { weeks: 12 },
+  { weeks: 52 },
 )
 
 const WEEKDAYS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+const PITCH = 24
+const DOT = 7
+const TOP = 18
 
 const weeks = computed(() => Math.max(1, props.weeks))
-const slots = computed(() => weeks.value * 7)
+const svgWidth = computed(() => weeks.value * PITCH)
+const svgHeight = TOP + 7 * PITCH
 
-/** 取最近 N 周，按日期升序补齐；缺失日期按 0 展示；日期用本地午夜构造。 */
-const cells = computed<ActivityDay[]>(() => {
-  const map = new Map<string, ActivityDay>()
-  props.days.forEach((day) => map.set(day.date, day))
-  const total = slots.value
+interface Cell {
+  date: string
+  col: number
+  row: number
+  future: boolean
+  metric: number
+  day: ActivityDay | null
+}
+
+function keyOf(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
+function parseDate(key: string): Date {
+  const [y, m, d] = key.split('-').map(Number)
+  return new Date(y, m - 1, d)
+}
+
+const today = (() => {
   const now = new Date()
-  const result: ActivityDay[] = []
-  for (let index = total - 1; index >= 0; index -= 1) {
-    const date = new Date(now.getFullYear(), now.getMonth(), now.getDate() - index)
-    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
-    result.push(map.get(key) ?? { date: key, answers: 0 })
-  }
-  return result
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate())
+})()
+
+/** 结束于本周周六，向前推 N 周，保证第一列是周日。 */
+const startDate = computed(() => {
+  const end = new Date(today.getFullYear(), today.getMonth(), today.getDate() + (6 - today.getDay()))
+  return new Date(end.getFullYear(), end.getMonth(), end.getDate() - (weeks.value * 7 - 1))
 })
 
-/** 教师按 answers 着色；学生按 xp>0 ? xp : answers 着色；active_students 只进读数。 */
-function metric(day: ActivityDay): number {
+const byDate = computed(() => {
+  const map = new Map<string, ActivityDay>()
+  props.days.forEach((day) => map.set(day.date, day))
+  return map
+})
+
+function metricOf(day: ActivityDay): number {
   if (props.role === 'student') {
     const xp = day.xp ?? 0
     return xp > 0 ? xp : day.answers
@@ -41,7 +65,32 @@ function metric(day: ActivityDay): number {
   return day.answers
 }
 
-const max = computed(() => Math.max(0, ...cells.value.map(metric)))
+const cells = computed<Cell[]>(() => {
+  const result: Cell[] = []
+  for (let col = 0; col < weeks.value; col += 1) {
+    for (let row = 0; row < 7; row += 1) {
+      const date = new Date(
+        startDate.value.getFullYear(),
+        startDate.value.getMonth(),
+        startDate.value.getDate() + col * 7 + row,
+      )
+      const key = keyOf(date)
+      const day = byDate.value.get(key) ?? null
+      const future = date.getTime() > today.getTime()
+      result.push({
+        date: key,
+        col,
+        row,
+        future,
+        metric: future || !day ? 0 : metricOf(day),
+        day,
+      })
+    }
+  }
+  return result
+})
+
+const max = computed(() => Math.max(0, ...cells.value.map((cell) => cell.metric)))
 
 function level(value: number): 'l0' | 'l1' | 'l2' | 'l3' | 'l4' {
   if (value <= 0 || max.value <= 0) return 'l0'
@@ -52,102 +101,96 @@ function level(value: number): 'l0' | 'l1' | 'l2' | 'l3' | 'l4' {
   return 'l4'
 }
 
-function sum(list: ActivityDay[], pick: (day: ActivityDay) => number): number {
-  return list.reduce((acc, day) => acc + pick(day), 0)
-}
+const maxAnswers = computed(() => Math.max(0, ...cells.value.map((cell) => cell.day?.answers ?? 0)))
+const maxXp = computed(() => Math.max(0, ...cells.value.map((cell) => cell.day?.xp ?? 0)))
+const todayCell = computed(() => cells.value.find((cell) => cell.date === keyOf(today)) ?? null)
 
-const maxAnswers = computed(() => Math.max(0, ...cells.value.map((day) => day.answers)))
-const maxXp = computed(() => Math.max(0, ...cells.value.map((day) => day.xp ?? 0)))
-
-/** 图上方 4 项统计，教师/学生口径不同；0 显示 0，不显示“—”。 */
+/** 图上方 4 项统计（未来格不计入）。 */
 const stats = computed<Array<{ label: string; value: number }>>(() => {
+  const past = cells.value.filter((cell) => !cell.future)
   if (props.role === 'teacher') {
     return [
-      { label: `${weeks.value}周作答`, value: sum(cells.value, (day) => day.answers) },
-      { label: '活跃天数', value: cells.value.filter((day) => day.answers > 0).length },
+      { label: `${weeks.value}周作答`, value: past.reduce((acc, cell) => acc + (cell.day?.answers ?? 0), 0) },
+      { label: '活跃天数', value: past.filter((cell) => (cell.day?.answers ?? 0) > 0).length },
       { label: '单日最高', value: maxAnswers.value },
-      { label: '今日活跃', value: cells.value.at(-1)?.active_students ?? 0 },
+      { label: '今日活跃', value: todayCell.value?.day?.active_students ?? 0 },
     ]
   }
   return [
-    { label: `${weeks.value}周经验`, value: sum(cells.value, (day) => day.xp ?? 0) },
-    { label: '活跃天数', value: cells.value.filter((day) => (day.xp ?? 0) > 0 || day.answers > 0).length },
+    { label: `${weeks.value}周经验`, value: past.reduce((acc, cell) => acc + (cell.day?.xp ?? 0), 0) },
+    {
+      label: '活跃天数',
+      value: past.filter((cell) => (cell.day?.xp ?? 0) > 0 || (cell.day?.answers ?? 0) > 0).length,
+    },
     { label: '单日最高', value: maxXp.value },
-    { label: '今日 XP', value: cells.value.at(-1)?.xp ?? 0 },
+    { label: '今日 XP', value: todayCell.value?.day?.xp ?? 0 },
   ]
 })
 
-function parseDate(key: string): Date {
-  const [y, m, d] = key.split('-').map(Number)
-  return new Date(y, m - 1, d)
-}
-
-interface MonthSegment {
-  label: string
-  startCol: number
-  endCol: number
-}
-
-/**
- * 月份段：按列聚合，只要该列任意一天进入新月份就换段（等价于取该列最后一天所在月份）。
- * 12 周窗口里 9/1 落在列中间时，标签从该列开始，而不是漂到下一列。
- */
-const monthSegments = computed<MonthSegment[]>(() => {
-  const result: MonthSegment[] = []
-  const formatter = new Intl.DateTimeFormat('zh-CN', { month: 'numeric' })
+/** 月份标签：只在该列周日进入新月份时出现，位置左对齐到列首。 */
+const monthLabels = computed<Array<{ x: number; label: string }>>(() => {
+  const result: Array<{ x: number; label: string }> = []
+  let previous = ''
   for (let col = 0; col < weeks.value; col += 1) {
-    const days = cells.value.slice(col * 7, col * 7 + 7)
-    if (days.length === 0) break
-    const last = parseDate(days[days.length - 1].date)
-    const label = `${formatter.format(last).replace(/月$/, '')}月`
-    const current = result[result.length - 1]
-    if (current && current.label === label) current.endCol = col
-    else result.push({ label, startCol: col, endCol: col })
+    const date = new Date(
+      startDate.value.getFullYear(),
+      startDate.value.getMonth(),
+      startDate.value.getDate() + col * 7,
+    )
+    const label = `${date.getMonth() + 1}月`
+    if (label !== previous) {
+      result.push({ x: col * PITCH, label })
+      previous = label
+    }
   }
   return result
 })
 
 const activeIndex = ref(-1)
-const activeDay = computed(() => (activeIndex.value >= 0 ? cells.value[activeIndex.value] ?? null : null))
-const activeLevel = computed(() => (activeDay.value ? level(metric(activeDay.value)) : 'l0'))
-const cellRefs = ref<Array<HTMLButtonElement | null>>([])
+const activeCell = computed(() => (activeIndex.value >= 0 ? cells.value[activeIndex.value] ?? null : null))
+const activeLevel = computed(() => (activeCell.value ? level(activeCell.value.metric) : 'l0'))
+const cellRefs = ref<Array<SVGRectElement | null>>([])
 
 function formatDay(dateKey: string): string {
   const date = parseDate(dateKey)
   return `${date.getMonth() + 1}月${date.getDate()}日 ${WEEKDAYS[date.getDay()]}`
 }
 
-function daySummary(day: ActivityDay): string {
+function daySummary(cell: Cell): string {
+  if (!cell.day) return '无学习记录'
   if (props.role === 'teacher') {
-    if (day.answers <= 0) return '无学习记录'
-    return `作答 ${day.answers} 次 · 活跃 ${day.active_students ?? 0} 人`
+    if (cell.day.answers <= 0) return '无学习记录'
+    return `作答 ${cell.day.answers} 次 · 活跃 ${cell.day.active_students ?? 0} 人`
   }
-  const xp = day.xp ?? 0
-  if (xp <= 0 && day.answers <= 0) return '无学习记录'
-  return `+${xp} XP · 作答 ${day.answers} 次`
+  const xp = cell.day.xp ?? 0
+  if (xp <= 0 && cell.day.answers <= 0) return '无学习记录'
+  return `+${xp} XP · 作答 ${cell.day.answers} 次`
 }
 
-function readText(day: ActivityDay): string {
-  return `${formatDay(day.date)} · ${daySummary(day)}`
+function readText(cell: Cell): string {
+  if (cell.future) return `${formatDay(cell.date)} · 未来日期`
+  return `${formatDay(cell.date)} · ${daySummary(cell)}`
 }
 
 function setCellRef(el: unknown, index: number): void {
-  cellRefs.value[index] = el as HTMLButtonElement | null
+  cellRefs.value[index] = el as SVGRectElement | null
 }
 
 function select(index: number, focus = false): void {
   if (index < 0 || index >= cells.value.length) return
+  if (cells.value[index]?.future) return
   activeIndex.value = index
   if (focus) {
     void nextTick(() => cellRefs.value[index]?.focus())
   }
 }
 
-/** 键盘：左右 ±7（按周），上下 ±1（按天）；roving tabindex，仅当前格可 Tab。 */
+/** 键盘：左右按周、上下按天；未来格跳过。 */
 function onKeydown(event: KeyboardEvent): void {
   const total = cells.value.length
   if (total === 0) return
-  const current = activeIndex.value >= 0 ? activeIndex.value : total - 1
+  const current = activeIndex.value >= 0 ? activeIndex.value : cells.value.findIndex((cell) => !cell.future)
+  if (current < 0) return
   let next = current
   if (event.key === 'ArrowLeft') next = current - 7
   else if (event.key === 'ArrowRight') next = current + 7
@@ -156,6 +199,7 @@ function onKeydown(event: KeyboardEvent): void {
   else return
   event.preventDefault()
   next = Math.max(0, Math.min(total - 1, next))
+  if (cells.value[next]?.future) return
   select(next, true)
 }
 </script>
@@ -171,10 +215,10 @@ function onKeydown(event: KeyboardEvent): void {
 
     <div class="heat-toolbar">
       <p class="heat-readout" aria-live="polite">
-        <template v-if="activeDay">
+        <template v-if="activeCell">
           <i class="heat-readout__dot" :class="activeLevel" aria-hidden="true" />
-          <span class="heat-readout__date">{{ formatDay(activeDay.date) }}</span>
-          <span class="heat-readout__value">{{ daySummary(activeDay) }}</span>
+          <span class="heat-readout__date">{{ formatDay(activeCell.date) }}</span>
+          <span class="heat-readout__value">{{ daySummary(activeCell) }}</span>
         </template>
         <span v-else class="heat-readout__hint">悬停、聚焦或按方向键查看每日记录</span>
       </p>
@@ -186,40 +230,52 @@ function onKeydown(event: KeyboardEvent): void {
       </div>
     </div>
 
-    <div
-      class="heat-grid"
-      role="grid"
-      :aria-label="`最近 ${weeks} 周学习热力`"
-      tabindex="0"
-      @keydown="onKeydown"
-    >
-      <button
-        v-for="(day, index) in cells"
-        :key="day.date"
-        type="button"
-        class="heat-cell"
-        :class="[level(metric(day)), { 'is-active': activeIndex === index }]"
-        :aria-label="readText(day)"
-        :tabindex="activeIndex === index ? 0 : -1"
-        :ref="(el) => setCellRef(el, index)"
-        @mouseenter="select(index)"
-        @focus="select(index)"
-        @click="select(index)"
-      />
-    </div>
+    <p v-if="max === 0" class="heat-empty">近 {{ weeks }} 周暂无学习记录</p>
 
-    <div
-      class="heat-months"
-      :style="{ gridTemplateColumns: `repeat(${weeks}, 13px)` }"
-      aria-hidden="true"
-    >
-      <span
-        v-for="segment in monthSegments"
-        :key="segment.startCol"
-        :style="{ gridColumn: `${segment.startCol + 1} / ${segment.endCol + 2}` }"
+    <div class="heat-scroll">
+      <svg
+        class="heat-svg"
+        :viewBox="`0 0 ${svgWidth} ${svgHeight}`"
+        role="group"
+        :aria-label="`最近 ${weeks} 周学习热力`"
+        @keydown="onKeydown"
       >
-        {{ segment.label }}
-      </span>
+        <text
+          v-for="month in monthLabels"
+          :key="month.label + month.x"
+          class="heat-month"
+          :x="month.x"
+          y="12"
+        >
+          {{ month.label }}
+        </text>
+
+        <g v-for="(cell, index) in cells" :key="cell.date">
+          <rect
+            v-if="!cell.future"
+            :ref="(el) => setCellRef(el, index)"
+            class="heat-hit"
+            :x="cell.col * PITCH"
+            :y="TOP + cell.row * PITCH"
+            :width="PITCH"
+            :height="PITCH"
+            :tabindex="activeIndex === index ? 0 : -1"
+            role="button"
+            :aria-label="readText(cell)"
+            @mouseenter="select(index)"
+            @focus="select(index)"
+            @click="select(index)"
+          />
+          <circle
+            class="heat-dot"
+            :class="[level(cell.metric), { 'is-future': cell.future, 'is-active': activeIndex === index }]"
+            :cx="cell.col * PITCH + PITCH / 2"
+            :cy="TOP + cell.row * PITCH + PITCH / 2"
+            :r="DOT"
+            aria-hidden="true"
+          />
+        </g>
+      </svg>
     </div>
   </div>
 </template>
@@ -244,15 +300,15 @@ function onKeydown(event: KeyboardEvent): void {
   font-size: 20px;
   line-height: 1.15;
   font-weight: 650;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
 }
 
 .heat-stat__label {
   display: block;
   margin-top: 2px;
-  font-size: 10.5px;
   color: var(--muted);
+  font-size: 12px;
   white-space: nowrap;
 }
 
@@ -275,7 +331,7 @@ function onKeydown(event: KeyboardEvent): void {
   border-radius: 999px;
   background: var(--surface-alt);
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.4;
 }
 
@@ -314,80 +370,81 @@ function onKeydown(event: KeyboardEvent): void {
 }
 
 .heat-readout__hint {
-  color: var(--tertiary);
+  color: var(--text-3);
 }
 
-.heat-grid {
-  display: grid;
-  grid-template-columns: repeat(12, 13px);
-  grid-template-rows: repeat(7, 13px);
-  grid-auto-flow: column;
-  gap: 7px;
-  justify-content: center;
-  align-content: start;
-  padding: 2px 0;
+.heat-empty {
+  margin: 0;
+  color: var(--text-3);
+  font-size: 12px;
 }
 
-.heat-cell {
-  width: 13px;
-  height: 13px;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  background: var(--heat-0);
+.heat-scroll {
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.heat-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.heat-month {
+  fill: var(--text-3);
+  font-size: 11px;
+  font-family: var(--font);
+}
+
+.heat-hit {
+  fill: transparent;
   cursor: pointer;
-  transition: transform 0.12s ease, box-shadow 0.12s ease;
-}
-
-.heat-cell:hover,
-.heat-cell:focus-visible {
-  transform: scale(1.05);
   outline: none;
-  box-shadow: 0 0 0 2px var(--surface), 0 0 0 3px var(--lime);
 }
 
-.heat-cell.is-active {
-  box-shadow: 0 0 0 2px var(--surface), 0 0 0 3px var(--lime-deep);
+.heat-hit:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: -2px;
 }
 
-.heat-cell.l1 {
-  background: var(--heat-1);
+.heat-dot {
+  fill: var(--heat-0);
+  pointer-events: none;
+  transition: transform 0.12s ease;
 }
 
-.heat-cell.l2 {
-  background: var(--heat-2);
+.heat-dot.l1 {
+  fill: var(--heat-1);
 }
 
-.heat-cell.l3 {
-  background: var(--heat-3);
+.heat-dot.l2 {
+  fill: var(--heat-2);
 }
 
-.heat-cell.l4 {
-  background: var(--heat-4);
+.heat-dot.l3 {
+  fill: var(--heat-3);
 }
 
-.heat-months {
-  display: grid;
-  gap: 7px;
-  justify-content: center;
-  margin-top: -2px;
-  font-size: 9.5px;
-  line-height: 1;
-  color: var(--tertiary);
+.heat-dot.l4 {
+  fill: var(--heat-4);
 }
 
-.heat-months span {
-  overflow: visible;
-  text-align: center;
-  white-space: nowrap;
+.heat-dot.is-future {
+  fill: var(--heat-0);
+  opacity: 0.45;
+}
+
+.heat-dot.is-active {
+  stroke: var(--lime-text);
+  stroke-width: 2;
 }
 
 .heat-legend {
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 10px;
-  color: var(--tertiary);
+  color: var(--text-3);
+  font-size: 11.5px;
 }
 
 .heat-legend i {
@@ -416,6 +473,15 @@ function onKeydown(event: KeyboardEvent): void {
   background: var(--heat-4);
 }
 
+@media (max-width: 900px) {
+  /* 窄屏保持 24px 命中区，图内横向滚动，不撑破页面。 */
+  .heat-svg {
+    width: auto;
+    min-width: 1248px;
+    height: auto;
+  }
+}
+
 @media (max-width: 640px) {
   .heat-stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -431,13 +497,8 @@ function onKeydown(event: KeyboardEvent): void {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .heat-cell {
+  .heat-dot {
     transition: none;
-  }
-
-  .heat-cell:hover,
-  .heat-cell:focus-visible {
-    transform: none;
   }
 }
 </style>

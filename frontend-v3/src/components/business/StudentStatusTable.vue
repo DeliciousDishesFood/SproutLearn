@@ -245,31 +245,31 @@ watch(statusFilter, () => {
           <thead>
             <tr>
               <th>学生</th>
-              <th>学号</th>
-              <th>状态</th>
-              <th class="num">得分</th>
-              <th>提交时间</th>
-              <th class="num">操作</th>
+              <th class="col-no">学号</th>
+              <th class="col-status">状态</th>
+              <th class="num col-score">得分</th>
+              <th class="col-time">提交时间</th>
+              <th class="num col-actions">操作</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="row in pagedRows" :key="row.student.id">
-              <td><strong>{{ row.student.name }}</strong></td>
-              <td class="tertiary">{{ row.student.student_no }}</td>
-              <td>
+              <td class="col-name"><strong>{{ row.student.name }}</strong></td>
+              <td class="col-no text-3">{{ row.student.student_no }}</td>
+              <td class="col-status">
                 <BaseBadge :tone="STATUS_TONE[row.status]">{{ STATUS_LABEL[row.status] }}</BaseBadge>
               </td>
-              <td class="num">
+              <td class="num col-score">
                 {{
                   row.attempt
                     ? `${formatScore(row.attempt.total_score)} / ${formatScore(row.attempt.full_score)}`
                     : '—'
                 }}
               </td>
-              <td class="tertiary">
+              <td class="col-time text-3">
                 {{ row.attempt ? formatDateTime(row.attempt.submitted_at) : '—' }}
               </td>
-              <td>
+              <td class="col-actions">
                 <div class="actions">
                   <RouterLink
                     v-if="row.status === 'submitted'"
@@ -321,14 +321,72 @@ watch(statusFilter, () => {
   max-width: 100%;
 }
 
-/* 375 窄屏：表格保持可读宽度，在 table-wrap 内横向滚动。 */
-.status-table {
-  min-width: 620px;
-}
-
+/* 375 窄屏：表格转紧凑两行，不再强制 620px 宽。 */
 @media (max-width: 640px) {
   .status-select {
     width: 100%;
   }
+
+  .status-table,
+  .status-table tbody {
+    display: block;
+  }
+
+  .status-table thead {
+    display: none;
+  }
+
+  .status-table tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto auto;
+    grid-template-areas:
+      'name status score actions'
+      'no no time time';
+    gap: 4px 8px;
+    padding: 10px 2px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+
+  .status-table tr:last-child {
+    border-bottom: 0;
+  }
+
+  .status-table td {
+    padding: 0;
+    border: 0;
+  }
+
+  .col-name {
+    grid-area: name;
+  }
+
+  .col-no {
+    grid-area: no;
+    font-size: 12px;
+  }
+
+  .col-status {
+    grid-area: status;
+  }
+
+  .col-score {
+    grid-area: score;
+    text-align: right;
+  }
+
+  .col-time {
+    grid-area: time;
+    text-align: right;
+    font-size: 12px;
+  }
+
+  .col-actions {
+    grid-area: actions;
+    justify-self: end;
+  }
+}
+
+.status-table .actions {
+  justify-content: flex-end;
 }
 </style>

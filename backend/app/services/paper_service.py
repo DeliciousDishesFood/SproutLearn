@@ -23,8 +23,10 @@ from app.repositories.paper_repo import PaperRepository
 from app.repositories.question_repo import QuestionRepository
 from app.schemas.paper import PaperCreateRequest, PaperUpdateRequest
 from app.services import question_bank_service
+from app.services import notification_service
 from app.services.attempt_view import attempt_time_fields
 from app.services.class_service import require_owned_class
+from app.services.qq_bot import notifier as bot_notifier
 from app.utils.response import page_data
 from app.utils.time import fmt_dt, now_naive
 
@@ -46,6 +48,7 @@ def _paper_item(paper: Paper) -> dict[str, Any]:
         "total_score": float(paper.total_score or 0),
         "status": paper.status,
         "published_at": fmt_dt(paper.published_at),
+        "due_at": fmt_dt(paper.due_at),
         "created_at": fmt_dt(paper.created_at),
     }
 
@@ -152,6 +155,7 @@ def create_paper(
         total_score=total_score,
         status="draft",
         created_by=current.user_id,
+        due_at=payload.due_at,
     )
     db.add(paper)
     try:
@@ -223,6 +227,8 @@ def update_paper(
         paper.blank_mode = payload.blank_mode
     if "kind" in fields and payload.kind is not None:
         paper.kind = payload.kind
+    if "due_at" in fields:
+        paper.due_at = payload.due_at
     try:
         db.commit()
     except Exception:
@@ -398,13 +404,26 @@ def publish_paper(db: Session, current: CurrentUser, *, paper_id: int) -> dict[s
     paper.published_at = now_naive()
     paper.question_count = len(rows)
     paper.total_score = round(sum(float(pq.score or 0) for pq, _question in rows), 2)
+    due_text = fmt_dt(paper.due_at) or "未设置"
+    notification_service.add_for_class(
+        db,
+        class_id=paper.class_id,
+        type="paper_published",
+        title=f"新作业：{paper.title}",
+        body=f"开始：{fmt_dt(paper.published_at)}；截止：{due_text}",
+        target_path=f"/student/papers/{paper.id}",
+        payload={"paper_id": paper.id, "due_at": fmt_dt(paper.due_at)},
+    )
     try:
         db.commit()
     except Exception:
         db.rollback()
         raise
     db.refresh(paper)
-    return paper_detail(db, current, paper_id=paper.id)
+    group_notice = bot_notifier.send_assignment_published(db, paper)
+    detail = paper_detail(db, current, paper_id=paper.id)
+    detail["group_notice"] = group_notice
+    return detail
 
 
 def _attempt_item(attempt: Attempt, paper: Paper) -> dict[str, Any]:

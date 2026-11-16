@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import BaseBadge from '@/components/ui/BaseBadge.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
+import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
 import { bindingApi } from '@/api/binding'
 import { toUserMessage } from '@/api/client'
 import type { QqBindCode } from '@/api/contract'
@@ -62,13 +63,19 @@ async function generate(): Promise<void> {
   }
 }
 
-async function unbind(): Promise<void> {
-  if (!window.confirm('解绑后 QQ 将无法查询你的作业与成绩，确定解绑吗？')) return
+const unbindOpen = ref(false)
+
+function unbind(): void {
+  unbindOpen.value = true
+}
+
+async function confirmUnbind(): Promise<void> {
   unbinding.value = true
   try {
     await bindingApi.unbind()
     toast.success('已解绑 QQ')
     code.value = null
+    unbindOpen.value = false
     await load()
   } catch (error) {
     toast.error(toUserMessage(error))
@@ -94,7 +101,6 @@ onBeforeUnmount(stopTimer)
     <div class="page-head__main">
       <p class="page-head__crumb">我的 · 账号</p>
       <h1>我的</h1>
-      <p class="page-head__lede">班级信息、学习等级与 QQ 绑定。</p>
     </div>
     <div class="page-head__actions">
       <RouterLink class="btn" to="/student">回到学习台</RouterLink>
@@ -145,15 +151,26 @@ onBeforeUnmount(stopTimer)
         </p>
         <div class="row row--wrap">
           <BaseButton variant="primary" :loading="generating" @click="generate">生成绑定码</BaseButton>
-          <span v-if="code" class="small tertiary">
+          <span v-if="code" class="small tertiary" aria-live="polite">
             {{ left > 0 ? `${Math.floor(left / 60)} 分 ${left % 60} 秒后失效` : '已过期，请重新生成' }}
           </span>
         </div>
         <div v-if="code" class="copy-code">
-          <code>{{ code.code }}</code>
+          <code style="user-select: all">{{ code.code }}</code>
           <button class="btn btn--sm" type="button" @click="copyCode">复制</button>
         </div>
       </template>
     </section>
   </div>
+
+  <ConfirmDialog
+    :open="unbindOpen"
+    title="解绑 QQ"
+    message="解绑后 QQ 将无法查询你的作业与成绩，可随时重新绑定。"
+    confirm-label="解绑"
+    tone="danger"
+    :loading="unbinding"
+    @confirm="confirmUnbind"
+    @cancel="unbindOpen = false"
+  />
 </template>

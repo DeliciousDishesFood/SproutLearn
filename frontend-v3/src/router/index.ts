@@ -1,6 +1,8 @@
 // 路由：按 meta.role 分流，教师/学生互斥；根路径按会话重定向。
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { ERROR_CODE } from '@/utils/constants'
+import { isApiError } from '@/api/client'
 import AppShell from '@/layouts/AppShell.vue'
 
 declare module 'vue-router' {
@@ -217,12 +219,19 @@ router.beforeEach(async (to) => {
   if (!auth.isLoggedIn) {
     return { path: '/login', query: to.fullPath === '/' ? undefined : { redirect: to.fullPath } }
   }
-  if (!auth.user) {
+  // 每次页面生命周期至少校验一次 /auth/me：换后端后不能继续演旧账号。
+  if (!auth.sessionVerified) {
     try {
       await auth.fetchMe()
-    } catch {
-      auth.clear()
-      return { path: '/login' }
+    } catch (error) {
+      const authExpired =
+        isApiError(error) &&
+        (error.code === ERROR_CODE.UNAUTHORIZED || error.code === ERROR_CODE.SESSION_EXPIRED)
+      if (authExpired) {
+        auth.clear()
+        return { path: '/login', query: { redirect: to.fullPath } }
+      }
+      // 网络或后端异常不清会话，交给页面展示错误与重试。
     }
   }
   if (to.meta.role === 'teacher' && !auth.isTeacher) return { path: '/student' }

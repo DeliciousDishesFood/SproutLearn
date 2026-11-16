@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import time
 from typing import Any
 
@@ -118,6 +119,61 @@ class OpenAICompatProvider:
                     continue
                 raise
         raise last_error or LLMError(LLMError.SERVER_ERROR, "unknown provider error")
+
+    def chat_stream(self, messages: list[dict[str, str]], **kwargs: Any):
+        """OpenAI SSE 流：逐段 yield delta.content；[DONE] 结束。"""
+        if not self.available():
+            raise LLMError(LLMError.AUTH_FAILED, "provider not configured")
+        payload: dict[str, Any] = {
+            "model": self.model,
+            "messages": messages,
+            "stream": True,
+        }
+        for key in ("temperature", "max_tokens", "top_p"):
+            if key in kwargs and kwargs[key] is not None:
+                payload[key] = kwargs[key]
+        try:
+            with self._client.stream(
+                "POST",
+                f"{self.base_url}/chat/completions",
+                headers=self._headers(),
+                json=payload,
+                timeout=self.timeout_seconds,
+            ) as response:
+                if response.status_code != 200:
+                    body = _safe_json(response)
+                    raise LLMError(
+                        _classify_status(response.status_code),
+                        "chat stream request failed",
+                        status_code=response.status_code,
+                        biz_code=_biz_code(body),
+                    )
+                for line in response.iter_lines():
+                    if not line:
+                        continue
+                    if isinstance(line, bytes):
+                        line = line.decode("utf-8", errors="ignore")
+                    if not line.startswith("data:"):
+                        continue
+                    raw = line[5:].strip()
+                    if raw == "[DONE]":
+                        break
+                    try:
+                        body = json.loads(raw)
+                    except ValueError:
+                        continue
+                    choices = body.get("choices") if isinstance(body, dict) else None
+                    if not isinstance(choices, list) or not choices:
+                        continue
+                    first = choices[0] if isinstance(choices[0], dict) else {}
+                    delta = first.get("delta") if isinstance(first.get("delta"), dict) else {}
+                    content = delta.get("content") or delta.get("reasoning_content")
+                    if isinstance(content, str) and content:
+                        yield content
+        except httpx.TimeoutException as exc:
+            raise LLMError(LLMError.TIMEOUT, "chat stream timeout") from exc
+        except httpx.HTTPError as exc:
+            raise LLMError(LLMError.SERVER_ERROR, type(exc).__name__) from exc
 
     def _post(self, model: str, messages: list[dict[str, str]], kwargs: dict[str, Any]) -> dict[str, Any]:
         payload: dict[str, Any] = {"model": model, "messages": messages}

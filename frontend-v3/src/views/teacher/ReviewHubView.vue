@@ -62,7 +62,6 @@ onMounted(load)
         <RouterLink :to="`/teacher/classes/${classId}`">班级</RouterLink> · 批改
       </p>
       <h1>批改</h1>
-      <p class="page-head__lede">按试卷进入作答列表，逐题查看并复核待复核题目。</p>
     </div>
     <div class="page-head__actions">
       <RouterLink class="btn" :to="`/teacher/classes/${classId}/papers`">全部试卷</RouterLink>
@@ -79,24 +78,20 @@ onMounted(load)
         <span class="stat__value">{{ workbench?.pending_review ?? 0 }}</span>
         <span class="stat__tag">按题目计数</span>
       </div>
-      <p class="stat__hint">复核完成后清零</p>
     </article>
     <article class="stat">
       <div class="stat__label">今日提交</div>
       <div class="stat__row"><span class="stat__value">{{ workbench?.today_submissions ?? 0 }}</span></div>
-      <p class="stat__hint">今天提交的作答数</p>
     </article>
     <article class="stat">
       <div class="stat__label">平均得分率</div>
       <div class="stat__row">
         <span class="stat__value">{{ formatPercent(workbench?.average_score_rate ?? 0) }}</span>
       </div>
-      <p class="stat__hint">原始平均分 {{ workbench?.average_score ?? 0 }}</p>
     </article>
     <article class="stat">
       <div class="stat__label">本页可批改</div>
       <div class="stat__row"><span class="stat__value">{{ reviewable.length }}</span></div>
-      <p class="stat__hint">已发布与已撤回的试卷（当前页）</p>
     </article>
   </section>
 
@@ -106,11 +101,12 @@ onMounted(load)
       <span class="card__meta">本页 {{ reviewable.length }} 份 · 共 {{ total }} 份</span>
     </header>
 
-    <p v-if="loading" class="loading-line">正在读取试卷…</p>
+    <div v-if="loading" class="stack">
+      <div v-for="index in 5" :key="index" class="skeleton row-skeleton" />
+    </div>
     <EmptyState
       v-else-if="reviewable.length === 0"
       title="暂无可批改试卷"
-      description="发布试卷并有学生提交后，这里会出现批改入口。"
       action-label="去组卷"
       @action="$router.push(`/teacher/classes/${classId}/papers/new`)"
     />

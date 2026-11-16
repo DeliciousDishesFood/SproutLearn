@@ -31,6 +31,8 @@ function readStoredUser(): AuthUser | null {
 export const useAuthStore = defineStore('auth', () => {
   const token = ref<string>(localStorage.getItem(STORAGE_KEYS.token) ?? '')
   const user = ref<AuthUser | null>(readStoredUser())
+  /** 本次页面生命周期内是否已用当前后端校验过 /auth/me（不持久化）。 */
+  const sessionVerified = ref(false)
 
   const isLoggedIn = computed(() => Boolean(token.value))
   const role = computed<'teacher' | 'student' | null>(() => user.value?.role ?? null)
@@ -54,12 +56,14 @@ export const useAuthStore = defineStore('auth', () => {
   function setSession(result: AuthResult): void {
     token.value = result.token
     user.value = result.user
+    sessionVerified.value = false
     persist()
   }
 
   async function fetchMe(): Promise<AuthUser> {
     const me = await authApi.me()
     user.value = me
+    sessionVerified.value = true
     persist()
     return me
   }
@@ -80,6 +84,7 @@ export const useAuthStore = defineStore('auth', () => {
     const result = await classesApi.join(payload)
     token.value = result.token
     user.value = result.user
+    sessionVerified.value = false
     persist()
     return fetchMe()
   }
@@ -87,22 +92,25 @@ export const useAuthStore = defineStore('auth', () => {
   function clear(): void {
     token.value = ''
     user.value = null
+    sessionVerified.value = false
     persist()
   }
 
   async function logout(): Promise<void> {
-    try {
-      await authApi.logout()
-    } catch {
-      // 登出失败也要清本地会话
-    } finally {
-      clear()
+    if (token.value) {
+      try {
+        await authApi.logout()
+      } catch {
+        // 登出失败也要清本地会话
+      }
     }
+    clear()
   }
 
   return {
     token,
     user,
+    sessionVerified,
     isLoggedIn,
     role,
     isTeacher,

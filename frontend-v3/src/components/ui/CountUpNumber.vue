@@ -10,7 +10,7 @@ const props = withDefaults(
     suffix?: string
     duration?: number
   }>(),
-  { decimals: 0, suffix: '', duration: 700 },
+  { decimals: 0, suffix: '', duration: 190 },
 )
 
 const el = ref<HTMLSpanElement | null>(null)

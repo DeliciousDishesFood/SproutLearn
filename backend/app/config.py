@@ -92,9 +92,13 @@ class Settings(BaseSettings):
     rate_limit_invite_reset: str
     rate_limit_upload: str
 
-    # ---------- 机器人（M2+ 占位，M1 仅回调鉴权；M3.3 增加配置加密密钥） ----------
+    # ---------- 机器人（M2+ 回调鉴权；M3.4 官方机器人配置） ----------
     bot_shared_secret: str = ""
-    bot_secret_key: str = ""
+    qq_bot_app_id: str = ""
+    qq_bot_app_secret: str = ""
+    qq_bot_enabled: bool = False
+    qq_bot_gateway_url: str = ""
+    qq_bot_explain_timeout_seconds: int = 8
 
     # ---------- 模型路由（M2A） ----------
     llm_chain: str = "amd,zhipu,deepseek"

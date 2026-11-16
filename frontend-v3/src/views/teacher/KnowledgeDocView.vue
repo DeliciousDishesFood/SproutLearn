@@ -91,11 +91,7 @@ onMounted(async () => {
     </header>
 
     <p v-if="loading" class="loading-line">正在读取切片…</p>
-    <EmptyState
-      v-else-if="chunks.length === 0"
-      title="暂无可用切片"
-      description="文档解析完成后，切片会出现在这里。"
-    />
+    <EmptyState v-else-if="chunks.length === 0" title="暂无可用切片" />
     <div v-else class="stack" style="margin-top: 12px">
       <article v-for="chunk in chunks" :key="chunk.id" class="notice" style="padding: 12px 14px">
         <div class="row row--between row--wrap">

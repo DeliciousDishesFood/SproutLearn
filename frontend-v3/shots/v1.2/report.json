@@ -1,0 +1,434 @@
+{
+  "shots": [
+    {
+      "name": "dashboard-1440",
+      "url": "http://127.0.0.1:5175/teacher"
+    },
+    {
+      "name": "questions-import-ai-1440",
+      "url": "http://127.0.0.1:5175/teacher/classes/501/questions"
+    },
+    {
+      "name": "dashboard-375",
+      "url": "http://127.0.0.1:5175/teacher"
+    },
+    {
+      "name": "questions-375",
+      "url": "http://127.0.0.1:5175/teacher/classes/501/questions"
+    },
+    {
+      "name": "attempt-save-failed-1440",
+      "url": "http://127.0.0.1:5175/student/attempts/802"
+    },
+    {
+      "name": "attempt-save-retried-1440",
+      "url": "http://127.0.0.1:5175/student/attempts/802"
+    },
+    {
+      "name": "attempt-submit-confirm-1440",
+      "url": "http://127.0.0.1:5175/student/attempts/802"
+    },
+    {
+      "name": "attempt-375",
+      "url": "http://127.0.0.1:5175/student/attempts/802"
+    },
+    {
+      "name": "result-explain-503-1440",
+      "url": "http://127.0.0.1:5175/student/attempts/802/result"
+    },
+    {
+      "name": "result-explain-regenerated-1440",
+      "url": "http://127.0.0.1:5175/student/attempts/802/result"
+    },
+    {
+      "name": "student-papers-375",
+      "url": "http://127.0.0.1:5175/student/papers"
+    },
+    {
+      "name": "qq-config-default-1440",
+      "url": "http://127.0.0.1:5175/teacher/classes/501/settings"
+    },
+    {
+      "name": "qq-unsaved-1440",
+      "url": "http://127.0.0.1:5175/teacher/classes/501/settings"
+    },
+    {
+      "name": "qq-test-failed-1440",
+      "url": "http://127.0.0.1:5175/teacher/classes/501/settings"
+    },
+    {
+      "name": "qq-test-ok-1440",
+      "url": "http://127.0.0.1:5175/teacher/classes/501/settings"
+    },
+    {
+      "name": "qq-group-unbound-1440",
+      "url": "http://127.0.0.1:5175/teacher/classes/501/settings"
+    },
+    {
+      "name": "qq-group-bound-1440",
+      "url": "http://127.0.0.1:5175/teacher/classes/501/settings"
+    },
+    {
+      "name": "qq-code-countdown-1440",
+      "url": "http://127.0.0.1:5175/teacher/classes/501/settings"
+    },
+    {
+      "name": "confirm-delete-1440",
+      "url": "http://127.0.0.1:5175/teacher/classes/501/banks"
+    },
+    {
+      "name": "dashboard-1024",
+      "url": "http://127.0.0.1:5175/teacher"
+    },
+    {
+      "name": "dashboard-dark-1440",
+      "url": "http://127.0.0.1:5175/teacher"
+    },
+    {
+      "name": "qq-dark-1440",
+      "url": "http://127.0.0.1:5175/teacher/classes/501/settings"
+    },
+    {
+      "name": "dashboard-zoom125-1440",
+      "url": "http://127.0.0.1:5175/teacher"
+    },
+    {
+      "name": "dashboard-reduced-motion-1440",
+      "url": "http://127.0.0.1:5175/teacher"
+    },
+    {
+      "name": "home-390",
+      "url": "http://127.0.0.1:5175/student"
+    }
+  ],
+  "errors": [
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://127.0.0.1:5175/student/attempts/802",
+    "Failed to load resource: the server responded with a status of 503 (Service Unavailable) @ http://127.0.0.1:5175/student/attempts/802/result",
+    "Failed to load resource: the server responded with a status of 503 (Service Unavailable) @ http://127.0.0.1:5175/teacher/classes/501/settings"
+  ],
+  "checks": {
+    "sessionMeCalls": 1,
+    "sessionMeCallsOk": true,
+    "heatWeeks": 52,
+    "heatZeroWeeksOk": true,
+    "statsSingleRow": 4,
+    "typewriterHasText": true,
+    "workbenchNoReviewCard": true,
+    "headerNoGradeLink": true,
+    "fourthStatIsClassSize": true,
+    "aiIsDefaultTab": "AI 智能识别",
+    "aiDefaultOk": true,
+    "tabsAria": {
+      "controls": "import-tab-panel",
+      "selected": "true",
+      "panelRole": "tabpanel",
+      "labelledby": "import-tabs-tab-ai",
+      "tabIndex": "0"
+    },
+    "focusInsideModal": true,
+    "trapWraps": true,
+    "escapeCloses": true,
+    "escapeRestoresFocus": true,
+    "selectActiveDescendant": "select-vkt03w-opt-0",
+    "selectOptionIds": true,
+    "selectMoved": true,
+    "selectHomeSkipsDisabled": true,
+    "selectEscapeFocus": true,
+    "selectEscapeCloses": true,
+    "mobileStatsColumns": 1,
+    "mobileStatsSingle": true,
+    "mobileNoOverflow": true,
+    "mobileBtnHit": 44,
+    "mobileBtnHitOk": true,
+    "mobileHeatScrollable": {
+      "scroll": true,
+      "pageOverflow": false
+    },
+    "questionSecondaryHidden": true,
+    "questionScrollHint": true,
+    "questionNoOverflow": true,
+    "nativeInputs": {
+      "count": 4,
+      "types": [
+        "radio"
+      ],
+      "focusable": true,
+      "inFieldset": true,
+      "hasLegend": true
+    },
+    "saveFailedButton": true,
+    "saveRetryOk": true,
+    "submitConfirmTone": "提交",
+    "submitHasDanger": false,
+    "swipeVisible": true,
+    "swipeIndexSynced": true,
+    "nativeTypesAll": [
+      "radio",
+      "checkbox"
+    ],
+    "nativeAllFocusable": true,
+    "attemptNoOverflow": true,
+    "explainErrorRetry": true,
+    "explainKeepsContext": true,
+    "explainRegenerated": true,
+    "studentPapersNoOverflow": true,
+    "qqSteps": 4,
+    "qqGroupBoundDefault": true,
+    "qqTestDefault": true,
+    "qqDirtyBadge": true,
+    "qqTestDisabledWhenDirty": true,
+    "qqTestFailed": true,
+    "qqTestOk": true,
+    "qqGroupUnbound": true,
+    "qqTestNever": true,
+    "qqGroupBound": true,
+    "qqCountdownTicks": true,
+    "qqCopyFallback": true,
+    "confirmIsDialog": 1,
+    "confirmDanger": 1,
+    "confirmHasTarget": true,
+    "confirmClosed": true,
+    "width1024NoOverflow": true,
+    "width1024Stats": 2,
+    "darkTheme": "dark",
+    "darkNoOverflow": true,
+    "zoom125NoOverflow": true,
+    "reducedMotion": true,
+    "reducedSkeletonAnim": "none",
+    "typewriterFullImmediately": true,
+    "width390NoOverflow": true
+  },
+  "notes": [],
+  "sourceChecks": {
+    "windowConfirm": 0,
+    "nativeSelect": 0,
+    "hardcodedQuote": 0,
+    "contractSha": "A7087A54A2C4CCF313A5F0B8365AE954650F5CA7D21037099985A66E688BB754"
+  },
+  "contrast": {
+    "summary": "22/22 PASS（light+dark，正文/辅助 ≥4.5，焦点轮廓 ≥4.5）",
+    "failed": 0,
+    "total": 22,
+    "results": [
+      {
+        "theme": "light",
+        "label": "正文 text / surface",
+        "fg": "#10151B",
+        "bg": "#FFFFFF",
+        "ratio": 18.34,
+        "min": 4.5,
+        "pass": true
+      },
+      {
+        "theme": "light",
+        "label": "辅助 muted / surface",
+        "fg": "#6B7280",
+        "bg": "#FFFFFF",
+        "ratio": 4.83,
+        "min": 4.5,
+        "pass": true
+      },
+      {
+        "theme": "light",
+        "label": "辅助 text-3 / surface",
+        "fg": "#687180",
+        "bg": "#FFFFFF",
+        "ratio": 4.93,
+        "min": 4.5,
+        "pass": true
+      },
+      {
+        "theme": "light",
+        "label": "辅助 muted / surface-alt",
+        "fg": "#6B7280",
+        "bg": "#F7F8FA",
+        "ratio": 4.55,
+        "min": 4.5,
+        "pass": true
+      },
+      {
+        "theme": "light",
+        "label": "辅助 text-3 / surface-alt",
+        "fg": "#687180",
+        "bg": "#F7F8FA",
+        "ratio": 4.64,
+        "min": 4.5,
+        "pass": true
+      },
+      {
+        "theme": "light",
+        "label": "表头 text-3 / surface-alt",
+        "fg": "#687180",
+        "bg": "#F7F8FA",
+        "ratio": 4.64,
+        "min": 4.5,
+        "pass": true
+      },
+      {
+        "theme": "light",
+        "label": "正文 text / bg",
+        "fg": "#10151B",
+        "bg": "#F5F6F8",
+        "ratio": 16.96,
+        "min": 4.5,
+        "pass": true
+      },
+      {
+        "theme": "light",
+        "label": "危险 danger / surface",
+        "fg": "#B42318",
+        "bg": "#FFFFFF",
+        "ratio": 6.57,
+        "min": 4.5,
+        "pass": true
+      },
+      {
+        "theme": "light",
+        "label": "焦点轮廓 lime-text / surface",
+        "fg": "#4C7300",
+        "bg": "#FFFFFF",
+        "ratio": 5.59,
+        "min": 4.5,
+        "pass": true
+      },
+      {
+        "theme": "light",
+        "label": "焦点轮廓 lime-text / surface-alt",
+        "fg": "#4C7300",
+        "bg": "#F7F8FA",
+        "ratio": 5.26,
+        "min": 4.5,
+        "pass": true
+      },
+      {
+        "theme": "light",
+        "label": "大标题 text / surface（≥3）",
+        "fg": "#10151B",
+        "bg": "#FFFFFF",
+        "ratio": 18.34,
+        "min": 3,
+        "pass": true
+      },
+      {
+        "theme": "dark",
+        "label": "正文 text / surface",
+        "fg": "#E9ECF0",
+        "bg": "#14181D",
+        "ratio": 15.04,
+        "min": 4.5,
+        "pass": true
+      },
+      {
+        "theme": "dark",
+        "label": "辅助 muted / surface",
+        "fg": "#A1AAB6",
+        "bg": "#14181D",
+        "ratio": 7.59,
+        "min": 4.5,
+        "pass": true
+      },
+      {
+        "theme": "dark",
+        "label": "辅助 text-3 / surface",
+        "fg": "#98A2AE",
+        "bg": "#14181D",
+        "ratio": 6.89,
+        "min": 4.5,
+        "pass": true
+      },
+      {
+        "theme": "dark",
+        "label": "辅助 muted / surface-alt",
+        "fg": "#A1AAB6",
+        "bg": "#191E24",
+        "ratio": 7.14,
+        "min": 4.5,
+        "pass": true
+      },
+      {
+        "theme": "dark",
+        "label": "辅助 text-3 / surface-alt",
+        "fg": "#98A2AE",
+        "bg": "#191E24",
+        "ratio": 6.48,
+        "min": 4.5,
+        "pass": true
+      },
+      {
+        "theme": "dark",
+        "label": "表头 text-3 / surface-alt",
+        "fg": "#98A2AE",
+        "bg": "#191E24",
+        "ratio": 6.48,
+        "min": 4.5,
+        "pass": true
+      },
+      {
+        "theme": "dark",
+        "label": "正文 text / bg",
+        "fg": "#E9ECF0",
+        "bg": "#0B0D10",
+        "ratio": 16.42,
+        "min": 4.5,
+        "pass": true
+      },
+      {
+        "theme": "dark",
+        "label": "危险 danger / surface",
+        "fg": "#FF9B8C",
+        "bg": "#14181D",
+        "ratio": 8.76,
+        "min": 4.5,
+        "pass": true
+      },
+      {
+        "theme": "dark",
+        "label": "焦点轮廓 lime-text / surface",
+        "fg": "#BEEF63",
+        "bg": "#14181D",
+        "ratio": 13.34,
+        "min": 4.5,
+        "pass": true
+      },
+      {
+        "theme": "dark",
+        "label": "焦点轮廓 lime-text / surface-alt",
+        "fg": "#BEEF63",
+        "bg": "#191E24",
+        "ratio": 12.55,
+        "min": 4.5,
+        "pass": true
+      },
+      {
+        "theme": "dark",
+        "label": "大标题 text / surface（≥3）",
+        "fg": "#E9ECF0",
+        "bg": "#14181D",
+        "ratio": 15.04,
+        "min": 3,
+        "pass": true
+      }
+    ]
+  },
+  "commands": {
+    "typecheck": {
+      "exit": 0
+    },
+    "build": {
+      "exit": 0
+    },
+    "contrast": {
+      "exit": 0
+    }
+  },
+  "expectedErrors": [
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://127.0.0.1:5175/student/attempts/802（验收脚本主动注入的 500/503，用于验证真实失败出口）",
+    "Failed to load resource: the server responded with a status of 503 (Service Unavailable) @ http://127.0.0.1:5175/student/attempts/802/result（验收脚本主动注入的 500/503，用于验证真实失败出口）",
+    "Failed to load resource: the server responded with a status of 503 (Service Unavailable) @ http://127.0.0.1:5175/teacher/classes/501/settings（验收脚本主动注入的 500/503，用于验证真实失败出口）"
+  ],
+  "p2Remaining": {
+    "loadingLine": 23,
+    "zIndexLiterals": 0,
+    "notes": "20 处视图 loading-line + LoadingBlock 定义，逐页清单见 P13 文档"
+  }
+}

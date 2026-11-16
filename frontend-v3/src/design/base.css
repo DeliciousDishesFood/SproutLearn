@@ -17,8 +17,8 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font);
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: 13.5px;
+  line-height: 1.55;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -49,11 +49,12 @@ input,
 select,
 textarea {
   font-family: inherit;
-  font-size: 13px;
+  font-size: 13.5px;
 }
 
+/* 统一焦点轮廓：实色 2px + 2px 外扩，任何浅色面上都清晰可辨。 */
 :focus-visible {
-  outline: 2px solid var(--lime-deep);
+  outline: var(--focus-ring);
   outline-offset: 2px;
 }
 
@@ -171,10 +172,10 @@ html {
 }
 
 .side-brand__name em {
-  font-size: 10px;
+  font-size: 11px;
   font-style: normal;
   font-weight: 400;
-  color: var(--tertiary);
+  color: var(--text-3);
   letter-spacing: 0.02em;
 }
 
@@ -187,7 +188,7 @@ html {
   border: 1px solid var(--btn-line);
   border-radius: 9px;
   background: var(--surface-alt);
-  color: var(--tertiary);
+  color: var(--text-3);
 }
 
 .side-search input {
@@ -201,7 +202,7 @@ html {
 }
 
 .side-search input::placeholder {
-  color: var(--tertiary);
+  color: var(--text-3);
 }
 
 .side-search:focus-within {
@@ -218,8 +219,8 @@ html {
 
 .side-nav__label {
   margin: 10px 8px 4px;
-  color: var(--tertiary);
-  font-size: 10px;
+  color: var(--text-3);
+  font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -258,7 +259,7 @@ html {
 
 .side-nav__item svg {
   flex: 0 0 auto;
-  color: var(--tertiary);
+  color: var(--text-3);
 }
 
 .side-nav__item.is-active svg {
@@ -273,7 +274,7 @@ html {
   border-radius: 999px;
   background: var(--lime-soft);
   color: var(--lime-text);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   display: inline-flex;
   align-items: center;
@@ -322,8 +323,8 @@ html {
 
 .side-user__meta em {
   overflow: hidden;
-  color: var(--tertiary);
-  font-size: 10px;
+  color: var(--text-3);
+  font-size: 11px;
   font-style: normal;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -340,7 +341,7 @@ html {
   border: 0;
   border-radius: 7px;
   background: transparent;
-  color: var(--tertiary);
+  color: var(--text-3);
   cursor: pointer;
 }
 
@@ -369,22 +370,24 @@ html {
 
 .page-head__crumb {
   margin: 0 0 6px;
-  color: var(--tertiary);
-  font-size: 11px;
-  letter-spacing: 0.04em;
+  color: var(--text-3);
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
 }
 
 .page-head h1 {
   margin: 0;
-  font-size: 22px;
+  font-size: 24px;
   font-weight: 600;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
+  text-wrap: balance;
 }
 
 .page-head__lede {
   margin: 5px 0 0;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 13.5px;
+  text-wrap: pretty;
 }
 
 .page-head__actions {
@@ -457,7 +460,7 @@ html {
 }
 
 .select__value.is-placeholder {
-  color: var(--tertiary);
+  color: var(--text-3);
 }
 
 /* 触发器左侧语义图标（题库/班级等），不压缩、不随下拉旋转。 */
@@ -497,7 +500,7 @@ html {
 
 .select__pop {
   position: fixed;
-  z-index: 120;
+  z-index: var(--z-popover);
   max-height: 264px;
   padding: 4px;
   overflow-y: auto;
@@ -596,14 +599,29 @@ html {
 
 .btn--primary {
   border-color: var(--lime-deep);
-  background: linear-gradient(180deg, var(--lime-hi) 0%, var(--lime) 55%, var(--lime-deep) 100%);
+  background: var(--lime);
   color: var(--lime-ink);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 4px 12px rgba(124, 206, 0, 0.22);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28);
 }
 
 .btn--primary:hover {
-  background: linear-gradient(180deg, #a8ec10 0%, #8ed900 55%, #6fba00 100%);
-  border-color: #6fba00;
+  background: var(--lime-hi);
+  border-color: var(--lime-deep);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    0 1px 2px rgba(27, 42, 0, 0.12);
+}
+
+.btn--primary:active {
+  background: #8cd800;
+  transform: translateY(1px);
+}
+
+/* 键盘焦点：主操作在青柠底上仍需要一圈可辨的外环 */
+.btn:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+  box-shadow: var(--focus-halo);
 }
 
 .btn--ghost {
@@ -638,6 +656,13 @@ html {
 
 .btn--block {
   width: 100%;
+}
+
+/* 手机上的主操作保持 44px 触控目标 */
+@media (max-width: 900px) {
+  .btn {
+    height: 44px;
+  }
 }
 
 .btn--icon {
@@ -717,8 +742,8 @@ html {
 
 .stat__hint {
   margin: 0;
-  color: var(--tertiary);
-  font-size: 11px;
+  color: var(--text-3);
+  font-size: 12px;
 }
 
 /* ---------- 卡片与两栏 ---------- */
@@ -755,9 +780,10 @@ html {
 }
 
 .card__head h2 {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 600;
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
+  text-wrap: balance;
 }
 
 .card__link {
@@ -767,8 +793,8 @@ html {
 }
 
 .card__meta {
-  color: var(--tertiary);
-  font-size: 11px;
+  color: var(--text-3);
+  font-size: 12px;
 }
 
 .section-title {
@@ -809,26 +835,31 @@ html {
 
 /* ---------- 表格 ---------- */
 .table-wrap {
+  position: relative;
   width: 100%;
   overflow-x: auto;
+}
+
+/* 窄屏横滚提示：只在必须横滚的宽表上方出现。 */
+.table-scroll-hint {
+  display: none;
 }
 
 .table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12.5px;
+  font-size: 13.5px;
 }
 
 .table th {
   padding: 8px 10px;
   border-bottom: 1px solid var(--line);
   background: var(--surface-alt);
-  color: var(--tertiary);
-  font-size: 10.5px;
+  color: var(--text-3);
+  font-size: 12px;
   font-weight: 600;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.02em;
   text-align: left;
-  text-transform: uppercase;
   white-space: nowrap;
 }
 
@@ -859,13 +890,13 @@ html {
 }
 
 .table .row-title strong {
-  font-size: 12.5px;
+  font-size: 13.5px;
   font-weight: 600;
 }
 
 .table .row-title em {
-  color: var(--tertiary);
-  font-size: 11px;
+  color: var(--text-3);
+  font-size: 12px;
   font-style: normal;
 }
 
@@ -888,8 +919,8 @@ html {
 .table__head {
   padding-bottom: 7px;
   border-bottom: 1px solid var(--line-soft);
-  color: var(--tertiary);
-  font-size: 10.5px;
+  color: var(--text-3);
+  font-size: 11.5px;
   letter-spacing: 0.06em;
 }
 
@@ -931,21 +962,21 @@ html {
 
 .table__main strong {
   overflow: hidden;
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .table__main em {
-  color: var(--tertiary);
-  font-size: 11px;
+  color: var(--text-3);
+  font-size: 12px;
   font-style: normal;
 }
 
 .table__meta {
-  color: var(--tertiary);
-  font-size: 11.5px;
+  color: var(--text-3);
+  font-size: 12px;
   text-align: right;
 }
 
@@ -959,7 +990,7 @@ html {
   border-radius: 999px;
   background: var(--surface-sunken);
   color: var(--pill-text);
-  font-size: 10.5px;
+  font-size: 11.5px;
   font-weight: 500;
   white-space: nowrap;
 }
@@ -1012,8 +1043,8 @@ html {
 
 .quote-card cite {
   margin-top: 10px;
-  color: var(--tertiary);
-  font-size: 10.5px;
+  color: var(--text-3);
+  font-size: 11.5px;
   font-style: normal;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -1170,7 +1201,7 @@ html {
 
 .foot {
   margin-top: 4px;
-  color: var(--tertiary);
+  color: var(--text-3);
   font-size: 11px;
   text-align: center;
 }
@@ -1238,7 +1269,7 @@ textarea.input {
 }
 
 .field__hint {
-  color: var(--tertiary);
+  color: var(--text-3);
   font-size: 11px;
 }
 
@@ -1360,7 +1391,7 @@ textarea.input {
 .modal-mask {
   position: fixed;
   inset: 0;
-  z-index: 60;
+  z-index: var(--z-modal);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1430,7 +1461,7 @@ textarea.input {
   position: fixed;
   top: 18px;
   right: 18px;
-  z-index: 90;
+  z-index: var(--z-toast);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -1460,7 +1491,7 @@ textarea.input {
 }
 
 .toast--info {
-  border-left-color: var(--tertiary);
+  border-left-color: var(--text-3);
 }
 
 /* ---------- 杂项 ---------- */
@@ -1501,11 +1532,27 @@ textarea.input {
 }
 
 .tertiary {
-  color: var(--tertiary);
+  color: var(--text-3);
 }
 
 .small {
+  font-size: 12px;
+}
+
+/* 默认折叠的技术信息：作答 ID、记录 key 等不占主视觉。 */
+.tech-details {
+  margin-top: 6px;
+  color: var(--text-3);
   font-size: 11.5px;
+}
+
+.tech-details summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.tech-details[open] summary {
+  margin-bottom: 2px;
 }
 
 .strong {
@@ -1569,24 +1616,45 @@ textarea.input {
 
 .skeleton {
   border-radius: 8px;
-  background: linear-gradient(90deg, var(--surface-sunken) 25%, var(--surface-alt) 37%, var(--surface-sunken) 63%);
-  background-size: 400% 100%;
-  animation: skeleton 1.4s ease infinite;
+  background: var(--surface-sunken);
+  animation: skeleton-pulse 1.8s ease-in-out infinite;
 }
 
-@keyframes skeleton {
-  0% {
-    background-position: 100% 50%;
-  }
+@keyframes skeleton-pulse {
+  0%,
   100% {
-    background-position: 0 50%;
+    opacity: 1;
   }
+  50% {
+    opacity: 0.62;
+  }
+}
+
+/* 离屏骨架屏暂停动画（main.ts 的 IntersectionObserver 打标）。 */
+.skeleton.is-offscreen {
+  animation-play-state: paused;
+}
+
+/* 结构与真实卡片/表格行一致的骨架尺寸。 */
+.card-skeleton {
+  height: 132px;
+  border-radius: var(--radius);
+}
+
+.row-skeleton {
+  height: 40px;
+  border-radius: 8px;
+}
+
+.stat-skeleton {
+  height: 96px;
+  border-radius: var(--radius);
 }
 
 .loading-line {
   padding: 22px;
   text-align: center;
-  color: var(--tertiary);
+  color: var(--text-3);
   font-size: 12px;
 }
 
@@ -1626,6 +1694,7 @@ textarea.input {
 /* ---------- 登录 / 公共页 ---------- */
 .login-body {
   min-height: 100vh;
+  min-height: 100dvh;
   background: var(--surface);
 }
 
@@ -1633,6 +1702,7 @@ textarea.input {
   display: grid;
   grid-template-columns: 1.05fr 0.95fr;
   min-height: 100vh;
+  min-height: 100dvh;
 }
 
 .login-story {
@@ -1649,6 +1719,8 @@ textarea.input {
   align-items: center;
   justify-content: center;
   padding: 32px 24px;
+  padding-top: max(32px, env(safe-area-inset-top));
+  padding-bottom: max(32px, env(safe-area-inset-bottom));
   background: var(--bg);
 }
 
@@ -1667,7 +1739,8 @@ textarea.input {
 .login-card__head h2 {
   font-size: 22px;
   font-weight: 600;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
+  text-wrap: balance;
 }
 
 .login-card__head p {
@@ -1686,7 +1759,7 @@ textarea.input {
 
 .eyebrow {
   color: var(--lime-text);
-  font-size: 10.5px;
+  font-size: 11.5px;
   font-weight: 600;
   letter-spacing: 0.16em;
   text-transform: uppercase;
@@ -1742,8 +1815,8 @@ textarea.input {
 .story__quote span {
   display: block;
   margin-top: 6px;
-  color: var(--tertiary);
-  font-size: 10.5px;
+  color: var(--text-3);
+  font-size: 11.5px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
@@ -1790,6 +1863,7 @@ textarea.input {
 .practice-body {
   background: var(--bg);
   min-height: 100vh;
+  min-height: 100dvh;
 }
 
 .topbar {
@@ -1854,7 +1928,7 @@ textarea.input {
 }
 
 .practice-title span {
-  color: var(--tertiary);
+  color: var(--text-3);
   font-size: 11px;
 }
 
@@ -1922,14 +1996,17 @@ textarea.input {
 
 .progress__bar i {
   display: block;
+  width: 100%;
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, var(--lime-hi), var(--lime-deep));
-  transition: width 200ms ease;
+  background: var(--lime);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 200ms ease;
 }
 
 .progress__text {
-  color: var(--tertiary);
+  color: var(--text-3);
   font-size: 11px;
   text-align: right;
 }
@@ -2021,7 +2098,7 @@ textarea.input {
 .option.is-selected {
   background: var(--lime-wash);
   border-color: var(--lime);
-  box-shadow: inset 0 0 0 1px var(--lime), 0 4px 12px rgba(154, 230, 0, 0.14);
+  box-shadow: inset 0 0 0 1px var(--lime);
 }
 
 .option__key {
@@ -2040,7 +2117,7 @@ textarea.input {
 }
 
 .option.is-selected .option__key {
-  background: linear-gradient(180deg, var(--lime-hi), var(--lime));
+  background: var(--lime);
   border-color: var(--lime);
   color: var(--lime-ink);
 }
@@ -2066,7 +2143,7 @@ textarea.input {
 }
 
 .q-foot__count {
-  color: var(--tertiary);
+  color: var(--text-3);
   font-size: 11.5px;
 }
 
@@ -2094,7 +2171,7 @@ textarea.input {
 }
 
 .sheet__dot.is-current {
-  background: linear-gradient(180deg, var(--lime-hi), var(--lime));
+  background: var(--lime);
   border-color: var(--lime);
   color: var(--lime-ink);
   font-weight: 700;
@@ -2104,8 +2181,8 @@ textarea.input {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  color: var(--tertiary);
-  font-size: 10.5px;
+  color: var(--text-3);
+  font-size: 11.5px;
 }
 
 .legend span {
@@ -2133,8 +2210,8 @@ textarea.input {
 }
 
 .side-note {
-  color: var(--tertiary);
-  font-size: 10.5px;
+  color: var(--text-3);
+  font-size: 11.5px;
   line-height: 1.55;
 }
 
@@ -2151,32 +2228,32 @@ textarea.input {
 }
 
 .panel__meta {
-  color: var(--tertiary);
-  font-size: 10.5px;
+  color: var(--text-3);
+  font-size: 11.5px;
 }
 
 /* 问问小芽 */
 .ask-trigger {
   position: fixed;
-  z-index: 40;
+  z-index: var(--z-sticky);
   display: inline-flex;
   align-items: center;
   gap: 5px;
   padding: 6px 10px;
   border: 0;
   border-radius: 10px;
-  background: linear-gradient(180deg, var(--lime-hi), var(--lime));
+  background: var(--lime);
   color: var(--lime-ink);
   font-size: 12px;
   font-weight: 600;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 8px 20px rgba(124, 206, 0, 0.22);
+  box-shadow: 0 6px 16px rgba(16, 24, 40, 0.16);
   cursor: pointer;
 }
 
 .ask-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 50;
+  z-index: var(--z-drawer);
   background: color-mix(in srgb, var(--overlay) 60%, transparent);
 }
 
@@ -2184,12 +2261,14 @@ textarea.input {
   position: fixed;
   top: 0;
   right: 0;
-  z-index: 55;
+  z-index: calc(var(--z-drawer) + 1);
   display: flex;
   flex-direction: column;
   width: 380px;
   max-width: 100%;
   height: 100vh;
+  height: 100dvh;
+  padding-bottom: env(safe-area-inset-bottom);
   background: var(--surface);
   border-left: 1px solid var(--line);
   box-shadow: 0 24px 64px rgba(16, 24, 40, 0.16);
@@ -2240,7 +2319,7 @@ textarea.input {
   position: fixed;
   top: 18px;
   right: 20px;
-  z-index: 40;
+  z-index: var(--z-sticky);
   width: 34px;
   height: 34px;
   border-radius: 10px;
@@ -2281,7 +2360,7 @@ textarea.input {
 .ask-chip__x {
   border: 0;
   background: transparent;
-  color: var(--tertiary);
+  color: var(--text-3);
   cursor: pointer;
   font-size: 15px;
   line-height: 1;
@@ -2324,8 +2403,8 @@ textarea.input {
 .ask-src {
   display: block;
   margin-top: 6px;
-  color: var(--tertiary);
-  font-size: 10.5px;
+  color: var(--text-3);
+  font-size: 11.5px;
 }
 
 .ask-src span {
@@ -2365,8 +2444,8 @@ textarea.input {
 
 .ask-note {
   padding: 0 16px 12px;
-  color: var(--tertiary);
-  font-size: 10.5px;
+  color: var(--text-3);
+  font-size: 11.5px;
   text-align: center;
 }
 
@@ -2394,7 +2473,7 @@ textarea.input {
 
 .result-hero__score small {
   font-size: 16px;
-  color: var(--tertiary);
+  color: var(--text-3);
   font-weight: 500;
 }
 
@@ -2436,8 +2515,8 @@ textarea.input {
 
 .answer-grid span {
   display: block;
-  color: var(--tertiary);
-  font-size: 10.5px;
+  color: var(--text-3);
+  font-size: 11.5px;
   margin-bottom: 2px;
 }
 
@@ -2497,8 +2576,8 @@ textarea.input {
 }
 
 .doc-nav__item em {
-  color: var(--tertiary);
-  font-size: 10.5px;
+  color: var(--text-3);
+  font-size: 11.5px;
   font-style: normal;
 }
 
@@ -2642,8 +2721,8 @@ textarea.input {
   align-items: center;
   gap: 8px;
   margin-top: 6px;
-  color: var(--tertiary);
-  font-size: 10.5px;
+  color: var(--text-3);
+  font-size: 11.5px;
 }
 
 /* 设置页卡片列表 */
@@ -2673,7 +2752,7 @@ textarea.input {
 }
 
 .toggle-row__text span {
-  color: var(--tertiary);
+  color: var(--text-3);
   font-size: 11px;
 }
 
@@ -2713,6 +2792,8 @@ textarea.input {
 }
 
 .checkbox__input:focus-visible + .checkbox__box {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
   box-shadow: var(--focus);
 }
 
@@ -2776,6 +2857,8 @@ textarea.input {
 }
 
 .switch input:focus-visible + i {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
   box-shadow: var(--focus);
 }
 
@@ -2861,8 +2944,8 @@ textarea.input {
   border: 1px solid var(--line);
   border-radius: 6px;
   background: var(--surface-alt);
-  color: var(--tertiary);
-  font-size: 10.5px;
+  color: var(--text-3);
+  font-size: 11.5px;
   line-height: 1.5;
 }
 
@@ -2916,7 +2999,7 @@ textarea.input {
     border-bottom: 1px solid var(--line);
     position: sticky;
     top: 0;
-    z-index: 30;
+    z-index: var(--z-sticky);
   }
 
   .main {
@@ -2959,12 +3042,6 @@ textarea.input {
   }
 }
 
-@media (max-width: 400px) {
-  .stats {
-    grid-template-columns: 1fr;
-  }
-}
-
 @media (max-width: 640px) {
   .app {
     padding: 0 12px 20px;
@@ -2972,7 +3049,7 @@ textarea.input {
 
   .mobile-bar {
     margin: 0 -12px 12px;
-    padding: 9px 12px;
+    padding: max(9px, env(safe-area-inset-top)) 12px 9px;
   }
 
   .mobile-bar .row {
@@ -2984,7 +3061,7 @@ textarea.input {
   }
 
   .page-head h1 {
-    font-size: 20px;
+    font-size: 22px;
   }
 
   .page-head__actions {
@@ -3062,7 +3139,7 @@ textarea.input {
   }
 
   .practice-head h1 {
-    font-size: 19px;
+    font-size: 22px;
   }
 
   .q-card {
@@ -3088,7 +3165,58 @@ textarea.input {
   }
 
   .btn {
-    min-height: 36px;
+    height: auto;
+    min-height: 44px;
+  }
+
+  .btn--sm {
+    min-height: 40px;
+  }
+
+  .btn--icon {
+    width: 44px;
+  }
+
+  .icon-btn {
+    width: 40px;
+    height: 40px;
+  }
+
+  .option {
+    min-height: 44px;
+  }
+
+  .sheet__dot {
+    min-height: 44px;
+  }
+
+  .side-nav__item {
+    min-height: 44px;
+  }
+
+  /* 必须横滚的宽表：首列吸附 + 提示。 */
+  .table-wrap.is-scrollable .table th:first-child,
+  .table-wrap.is-scrollable .table td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--surface);
+  }
+
+  .table-wrap.is-scrollable .table th:first-child {
+    background: var(--surface-alt);
+  }
+
+  .table-scroll-hint {
+    display: block;
+    margin: 0 0 6px;
+    color: var(--text-3);
+    font-size: 11.5px;
+  }
+
+  .theme-fab {
+    top: max(12px, env(safe-area-inset-top));
+    right: max(12px, env(safe-area-inset-right));
   }
 
   .form-actions {
@@ -3100,11 +3228,85 @@ textarea.input {
   }
 }
 
+/* 触控设备：主要可点区域命中区 ≥44px（图标按钮 40px，图标本身仍 16px）。 */
+@media (pointer: coarse) {
+  .btn {
+    height: auto;
+    min-height: 44px;
+  }
+
+  .btn--sm {
+    min-height: 40px;
+  }
+
+  .btn--icon {
+    width: 44px;
+  }
+
+  .icon-btn {
+    width: 40px;
+    height: 40px;
+  }
+
+  .side-user__out {
+    width: 40px;
+    height: 40px;
+  }
+
+  .modal__close {
+    width: 40px;
+    height: 40px;
+  }
+
+  .side-nav__item {
+    min-height: 44px;
+  }
+
+  .option {
+    min-height: 44px;
+  }
+
+  .sheet__dot {
+    min-height: 44px;
+  }
+
+  .pagination button {
+    min-height: 40px;
+  }
+
+  .text-link {
+    min-height: 32px;
+  }
+}
+
+/* 窄屏最后生效：≤400 时统计卡回落单列（必须放在 ≤640 之后，否则被双列覆盖）。 */
+@media (max-width: 400px) {
+  .stats {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
+  }
+
+  /* 无限循环动效直接关闭，而不是缩短到 0.01ms 反复触发。 */
+  .skeleton,
+  .spin,
+  .toast {
+    animation: none !important;
+  }
+
+  .heat-cell,
+  .btn,
+  .select__chevron,
+  .switch i,
+  .switch i::after,
+  .progress__bar i {
+    transition: none !important;
   }
 }

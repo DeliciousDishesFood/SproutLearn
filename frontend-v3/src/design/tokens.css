@@ -8,6 +8,9 @@
   --surface-sunken: #F2F4F7;
   --text: #10151B;
   --muted: #6B7280;
+  /* 真实辅助文字（时间/表头/说明）：白底与浅面均 ≥4.5:1。 */
+  --text-3: #687180;
+  /* 仅用于禁用、占位装饰，不再承载真实信息。 */
   --tertiary: #9AA1AB;
   --line: #E9EBEF;
   --line-soft: #F2F4F7;
@@ -21,16 +24,39 @@
   --lime-line: #E1F4BC;
   --lime-ink: #1B2A00;
   --lime-text: #4C7300;
+
+  /* 生长轨迹：深色品牌画布（两种主题都保持深色，是品牌面而非反色） */
+  --graphite: #0E1210;
+  --graphite-2: #151B17;
+  --graphite-3: #1B221D;
+  --graphite-line: rgba(255, 255, 255, 0.1);
+  --graphite-line-strong: rgba(255, 255, 255, 0.18);
+  --graphite-ink: #F2F5F3;
+  --graphite-ink-2: #ADAEAE;
+  --graphite-ink-3: #878887;
+  /* 局部冷灰舞台：只给登录页、答题阅读面使用，不替换全站 --bg */
+  --stage-cool: #EEF1F0;
+  --surface-cool: #F6F8F7;
+  --line-cool: #D9E0DB;
+  --stage-ink-2: #5F6963;
+  /* 组件语义：选项选中面、焦点外环 */
+  --option-selected-bg: #151B17;
+  --option-selected-ink: #F2F5F3;
+  --option-selected-line: rgba(255, 255, 255, 0.12);
+  --focus-halo: 0 0 0 4px rgba(154, 230, 0, 0.36);
+  --focus-ring-on-dark: 2px solid var(--lime-hi);
   --card-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
   --sheet-shadow: 0 18px 48px rgba(16, 24, 40, 0.18);
   --focus: 0 0 0 3px rgba(154, 230, 0, 0.3);
+  /* 焦点轮廓：深青柠文字色，与白底/浅面 ≥ 4.5:1，不再只用淡光。 */
+  --focus-ring: 2px solid var(--lime-text);
   --radius: 16px;
   --radius-sm: 10px;
-  --heat-0: #F0F2F5;
-  --heat-1: #EEF8D9;
-  --heat-2: #DAF0A8;
-  --heat-3: #B9E45C;
-  --heat-4: #9AE600;
+  --heat-0: #EEF1F5;
+  --heat-1: #E4F5C0;
+  --heat-2: #C9EC7A;
+  --heat-3: #A9DD2E;
+  --heat-4: #7CCE00;
   --pill-bg: #F5F6F8;
   --pill-text: #5B6472;
   --option-line: #E5E8ED;
@@ -48,6 +74,12 @@
   --scrollbar-track: transparent;
   --overlay: rgba(16, 21, 27, 0.42);
   --font: "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+  /* 层级 token：sticky < drawer < modal < popover（弹窗内下拉需盖住弹窗）< toast。 */
+  --z-sticky: 30;
+  --z-drawer: 70;
+  --z-modal: 80;
+  --z-popover: 90;
+  --z-toast: 100;
 }
 
 /* 暗色主题：中性近黑画布 + 抬升面板 + 发丝边，强调色仍只用青柠。
@@ -60,6 +92,7 @@
   --surface-sunken: #0F1216;
   --text: #E9ECF0;
   --muted: #A1AAB6;
+  --text-3: #98A2AE;
   --tertiary: #7E8794;
   --line: #252A32;
   --line-soft: #1D2229;
@@ -72,7 +105,18 @@
   --lime-wash: rgba(154, 230, 0, 0.07);
   --lime-line: rgba(154, 230, 0, 0.32);
   --lime-ink: #0E1900;
-  --lime-text: #BEEF63;
+  --lime-text: #C6F168;
+
+  /* 深色主题补全：品牌画布仍是石墨；阅读面、选中面与冷灰舞台换成深色材质 */
+  --stage-cool: #0C100D;
+  --surface-cool: #191F1B;
+  --line-cool: #2A322C;
+  --stage-ink-2: #B9C1BB;
+  --graphite-ink-2: #B9BBBA;
+  --graphite-ink-3: #8F918F;
+  --option-selected-bg: #26332A;
+  --option-selected-ink: #F4F7F4;
+  --option-selected-line: rgba(255, 255, 255, 0.14);
   --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
   --sheet-shadow: 0 18px 48px rgba(0, 0, 0, 0.55);
   --focus: 0 0 0 3px rgba(154, 230, 0, 0.22);

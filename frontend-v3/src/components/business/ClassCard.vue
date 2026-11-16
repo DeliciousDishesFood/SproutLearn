@@ -94,7 +94,7 @@ defineProps<{ item: ClassListItem }>()
 }
 
 .class-card__stats span {
-  color: var(--tertiary);
-  font-size: 10.5px;
+  color: var(--text-3);
+  font-size: 11.5px;
 }
 </style>

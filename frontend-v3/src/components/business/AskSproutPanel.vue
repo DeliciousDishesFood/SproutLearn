@@ -4,6 +4,7 @@ import { Sparkles, X } from 'lucide-vue-next'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import { attemptsApi, type AskSproutHistoryMessage, type AskSproutSource } from '@/api/attempts'
 import { isApiError, toUserMessage } from '@/api/client'
+import { useFocusTrap } from '@/composables/useFocusTrap'
 
 interface ChatMessage {
   role: 'user' | 'assistant'
@@ -30,7 +31,16 @@ const sending = ref(false)
 const errorText = ref('')
 const cooldown = ref(0)
 const inputEl = ref<HTMLTextAreaElement | null>(null)
+const panelEl = ref<HTMLElement | null>(null)
 let cooldownTimer: number | null = null
+
+// 侧滑抽屉与弹窗共用焦点陷阱：焦点圈定、Escape、关闭恢复、锁定滚动。
+useFocusTrap({
+  active: () => props.open,
+  container: panelEl,
+  onEscape: () => emit('close'),
+  initialFocus: () => inputEl.value,
+})
 
 const canSend = computed(
   () => !sending.value && cooldown.value === 0 && input.value.trim().length > 0,
@@ -125,10 +135,6 @@ async function send(): Promise<void> {
 }
 
 function onKeydown(event: KeyboardEvent): void {
-  if (event.key === 'Escape') {
-    emit('close')
-    return
-  }
   if (event.key === 'Enter' && !event.shiftKey) {
     event.preventDefault()
     void send()
@@ -141,6 +147,7 @@ function onKeydown(event: KeyboardEvent): void {
     <template v-if="open">
       <div class="ask-backdrop" @mousedown.self="emit('close')" />
       <aside
+        ref="panelEl"
         class="ask-panel"
         role="dialog"
         aria-modal="true"

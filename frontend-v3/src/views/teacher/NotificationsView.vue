@@ -148,7 +148,6 @@ onMounted(async () => {
     <div class="page-head__main">
       <p class="page-head__crumb">管理 · 消息</p>
       <h1>通知与公告</h1>
-      <p class="page-head__lede">查看系统通知，向班级发送公告。</p>
     </div>
     <div class="page-head__actions">
       <BaseButton :disabled="unread === 0" @click="readAll">全部已读</BaseButton>
@@ -173,7 +172,7 @@ onMounted(async () => {
       </div>
 
       <p v-if="loading" class="loading-line">正在读取通知…</p>
-      <EmptyState v-else-if="items.length === 0" title="暂无通知" description="新的系统通知会出现在这里。" />
+      <EmptyState v-else-if="items.length === 0" title="暂无通知" />
       <template v-else>
         <div class="notice-list">
           <button

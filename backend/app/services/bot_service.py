@@ -1,23 +1,36 @@
-"""M3.3 班级 QQ 机器人配置：保存/读取/凭证连通性测试。"""
+"""班级 QQ 机器人配置：保存/读取/凭证连通性测试。
+
+AppSecret 只从环境变量读取，绝不入库、回显或写日志。
+"""
 
 from __future__ import annotations
 
+import json
+from datetime import timedelta
 from typing import Any
 
-import httpx
+import redis
 from loguru import logger
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
 from app.deps import CurrentUser
 from app.exceptions import AppException, ErrorCode
 from app.models.class_bot_config import ClassBotConfig
 from app.schemas.bot import BotConfigUpdateRequest
 from app.services.class_service import require_owned_class
-from app.utils.bot_crypto import decrypt_secret, encrypt_secret, secret_tail
-from app.utils.time import fmt_dt, now_naive
+from app.services.qq_bot import client as qq_client
+from app.utils import cache_keys
+from app.utils.time import fmt_dt, now, now_naive
 
-TOKEN_URL = "https://bots.qq.com/app/getAppAccessToken"
+_settings = get_settings()
 TIMEOUT_SECONDS = 8.0
+
+
+def _redis() -> redis.Redis:
+    from app.redis_client import get_redis_client
+
+    return get_redis_client()
 
 
 def _empty(class_id: int) -> dict[str, Any]:
@@ -26,32 +39,51 @@ def _empty(class_id: int) -> dict[str, Any]:
         "app_id": None,
         "callback_url": None,
         "enabled": False,
+        "group_openid": None,
+        "teacher_openid": None,
+        "teacher_bound_at": None,
+        "binding_enabled": True,
+        "notify_assignment": True,
+        "notify_due_soon": True,
+        "mention_missing": False,
+        "allow_query_assignments": True,
+        "allow_query_scores": False,
+        "bot_chat_mode": "balanced",
+        "bot_chat_enabled": True,
+        "bot_chat_max_chars": 1200,
         "last_check_at": None,
         "last_check_status": "never",
-        "has_secret": False,
-        "secret_tail": None,
+        "secret_managed_by_env": True,
     }
 
 
 def _view(config: ClassBotConfig | None, class_id: int) -> dict[str, Any]:
     if config is None:
         return _empty(class_id)
-    tail = secret_tail(decrypt_secret(config.app_secret_cipher))
     return {
         "class_id": config.class_id,
         "app_id": config.app_id,
         "callback_url": config.callback_url,
         "enabled": bool(config.enabled),
+        "group_openid": config.group_openid,
+        "teacher_openid": config.teacher_openid,
+        "teacher_bound_at": fmt_dt(config.teacher_bound_at),
+        "binding_enabled": bool(config.binding_enabled),
+        "notify_assignment": bool(config.notify_assignment),
+        "notify_due_soon": bool(config.notify_due_soon),
+        "mention_missing": bool(config.mention_missing),
+        "allow_query_assignments": bool(config.allow_query_assignments),
+        "allow_query_scores": bool(config.allow_query_scores),
+        "bot_chat_mode": config.bot_chat_mode or "balanced",
+        "bot_chat_enabled": bool(config.bot_chat_enabled),
+        "bot_chat_max_chars": int(config.bot_chat_max_chars or 1200),
         "last_check_at": fmt_dt(config.last_check_at),
         "last_check_status": config.last_check_status or "never",
-        "has_secret": bool(config.app_secret_cipher),
-        "secret_tail": tail,
+        "secret_managed_by_env": True,
     }
 
 
-def get_config(
-    db: Session, current: CurrentUser, *, class_id: int
-) -> dict[str, Any]:
+def get_config(db: Session, current: CurrentUser, *, class_id: int) -> dict[str, Any]:
     require_owned_class(db, class_id, current.user_id)
     config = db.query(ClassBotConfig).filter(ClassBotConfig.class_id == class_id).one_or_none()
     return _view(config, class_id)
@@ -66,16 +98,21 @@ def save_config(
 ) -> dict[str, Any]:
     require_owned_class(db, class_id, current.user_id)
     config = db.query(ClassBotConfig).filter(ClassBotConfig.class_id == class_id).one_or_none()
-    secret = payload.app_secret or ""
-    if config is None and not secret:
-        raise AppException(ErrorCode.VALIDATION_ERROR, "首次保存必须填写 AppSecret")
     if config is None:
         config = ClassBotConfig(
             class_id=class_id,
             app_id=payload.app_id,
-            app_secret_cipher=encrypt_secret(secret),
             callback_url=payload.callback_url,
             enabled=1 if payload.enabled else 0,
+            binding_enabled=1 if payload.binding_enabled else 0,
+            notify_assignment=1 if payload.notify_assignment else 0,
+            notify_due_soon=1 if payload.notify_due_soon else 0,
+            mention_missing=1 if payload.mention_missing else 0,
+            allow_query_assignments=1 if payload.allow_query_assignments else 0,
+            allow_query_scores=1 if payload.allow_query_scores else 0,
+            bot_chat_mode=payload.bot_chat_mode,
+            bot_chat_enabled=1 if payload.bot_chat_enabled else 0,
+            bot_chat_max_chars=payload.bot_chat_max_chars,
             last_check_status="never",
             created_by=current.user_id,
         )
@@ -84,8 +121,15 @@ def save_config(
         config.app_id = payload.app_id
         config.callback_url = payload.callback_url
         config.enabled = 1 if payload.enabled else 0
-        if secret:
-            config.app_secret_cipher = encrypt_secret(secret)
+        config.binding_enabled = 1 if payload.binding_enabled else 0
+        config.notify_assignment = 1 if payload.notify_assignment else 0
+        config.notify_due_soon = 1 if payload.notify_due_soon else 0
+        config.mention_missing = 1 if payload.mention_missing else 0
+        config.allow_query_assignments = 1 if payload.allow_query_assignments else 0
+        config.allow_query_scores = 1 if payload.allow_query_scores else 0
+        config.bot_chat_mode = payload.bot_chat_mode
+        config.bot_chat_enabled = 1 if payload.bot_chat_enabled else 0
+        config.bot_chat_max_chars = payload.bot_chat_max_chars
     try:
         db.commit()
     except Exception:
@@ -95,51 +139,32 @@ def save_config(
     return _view(config, class_id)
 
 
-def _qq_error(data: dict[str, Any]) -> tuple[str | None, str]:
-    code = data.get("code") or data.get("errcode")
-    message = data.get("message") or data.get("msg") or "QQ 返回失败"
-    return (str(code) if code is not None else None, str(message)[:200])
-
-
-def test_config(
-    db: Session, current: CurrentUser, *, class_id: int
-) -> dict[str, Any]:
+def test_config(db: Session, current: CurrentUser, *, class_id: int) -> dict[str, Any]:
     require_owned_class(db, class_id, current.user_id)
     config = db.query(ClassBotConfig).filter(ClassBotConfig.class_id == class_id).one_or_none()
     if config is None:
         raise AppException(ErrorCode.VALIDATION_ERROR, "请先保存机器人配置")
-    secret = decrypt_secret(config.app_secret_cipher)
-    if not secret:
-        raise AppException(ErrorCode.INTERNAL_ERROR, "机器人 Secret 无法解密，请重新保存")
+    app_id = (_settings.qq_bot_app_id or "").strip()
+    credential = (_settings.qq_bot_app_secret or "").strip()
+    if not app_id or not credential:
+        raise AppException(
+            ErrorCode.INTERNAL_ERROR, "未配置 QQ_BOT_APP_ID/QQ_BOT_APP_SECRET"
+        )
 
     ok = False
     message = "连接失败"
     expires_in: int | None = None
     try:
-        response = httpx.post(
-            TOKEN_URL,
-            json={"appId": config.app_id, "clientSecret": secret},
-            timeout=TIMEOUT_SECONDS,
-        )
-        try:
-            data = response.json()
-        except ValueError:
-            data = {}
-        if response.status_code == 200 and isinstance(data, dict) and data.get("access_token"):
-            ok = True
+        token_data = qq_client.get_app_access_token()
+        ok = bool(token_data.get("access_token"))
+        if ok:
             message = "连接成功"
-            raw_expires = data.get("expires_in")
-            try:
-                expires_in = int(raw_expires) if raw_expires is not None else None
-            except (TypeError, ValueError):
-                expires_in = None
+            raw = token_data.get("expires_in")
+            expires_in = int(raw) if raw is not None else None
         else:
-            code, detail = _qq_error(data if isinstance(data, dict) else {})
-            message = f"QQ 错误码 {code}: {detail}" if code else detail
-    except httpx.TimeoutException:
-        message = "请求超时（8s）"
-    except httpx.HTTPError:
-        message = "QQ 接口连接失败"
+            message = str(token_data.get("message") or "QQ 返回失败")[:200]
+    except qq_client.QQBotError as exc:
+        message = exc.safe_message
     except Exception:  # noqa: BLE001 - 第三方异常绝不透传
         message = "QQ 接口请求失败"
 
@@ -153,7 +178,7 @@ def test_config(
     logger.info(
         "bot test class_id={} app_id_tail={} ok={}",
         class_id,
-        config.app_id[-4:],
+        app_id[-4:],
         ok,
     )
     return {
@@ -163,3 +188,44 @@ def test_config(
         "last_check_at": fmt_dt(config.last_check_at),
         "last_check_status": config.last_check_status,
     }
+
+
+def generate_group_code(
+    db: Session, current: CurrentUser, *, class_id: int
+) -> dict[str, Any]:
+    require_owned_class(db, class_id, current.user_id)
+    ttl = 600
+    try:
+        client = _redis()
+        code = ""
+        for _ in range(10):
+            from app.services.code_service import generate_bind_code
+
+            code = generate_bind_code()
+            if client.set(
+                cache_keys.qq_group_bind_key(code),
+                json.dumps({"class_id": class_id, "teacher_id": current.user_id}),
+                ex=ttl,
+                nx=True,
+            ):
+                break
+        else:
+            raise AppException(ErrorCode.INTERNAL_ERROR, "群绑定码生成失败，请重试")
+    except redis.RedisError as exc:
+        raise AppException(ErrorCode.DEPENDENCY_UNAVAILABLE, "依赖服务不可用") from exc
+    expires_at = now().replace(microsecond=0) + timedelta(seconds=ttl)
+    return {"code": code, "expires_in": ttl, "expires_at": fmt_dt(expires_at)}
+
+
+def consume_group_code(code: str) -> dict | None:
+    try:
+        raw = _redis().getdel(cache_keys.qq_group_bind_key(code))
+    except redis.RedisError:
+        return None
+    if not raw:
+        return None
+    try:
+        data = json.loads(raw)
+        return {"class_id": int(data["class_id"]), "teacher_id": int(data.get("teacher_id") or 0)}
+    except (TypeError, ValueError, KeyError):
+        return None

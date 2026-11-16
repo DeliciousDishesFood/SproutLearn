@@ -64,7 +64,6 @@ async function submit(): Promise<void> {
             <li><i></i>班级学情与成长数据实时可见</li>
           </ul>
         </div>
-        <p class="story__quote">“让学生看见自己的进步。”<span>青芽教学手记</span></p>
       </section>
 
       <section class="login-form-wrap">

@@ -1,15 +1,27 @@
-"""M3.3 机器人配置请求模型。"""
+"""M3.4/M3.5 机器人配置请求模型（Secret 不在请求/响应中出现）。"""
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field, field_validator
+
+ChatMode = Literal["strict", "balanced", "free"]
 
 
 class BotConfigUpdateRequest(BaseModel):
     app_id: str = Field(min_length=1, max_length=64)
-    app_secret: str | None = Field(default=None, max_length=512)
     callback_url: str | None = Field(default=None, max_length=255)
     enabled: bool = False
+    binding_enabled: bool = True
+    notify_assignment: bool = True
+    notify_due_soon: bool = True
+    mention_missing: bool = False
+    allow_query_assignments: bool = True
+    allow_query_scores: bool = False
+    bot_chat_mode: ChatMode = "balanced"
+    bot_chat_enabled: bool = True
+    bot_chat_max_chars: int = Field(default=1200, ge=100, le=2000)
 
     @field_validator("app_id")
     @classmethod

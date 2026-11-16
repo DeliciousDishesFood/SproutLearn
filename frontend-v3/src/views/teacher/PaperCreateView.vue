@@ -235,7 +235,6 @@ onMounted(async () => {
         <RouterLink :to="`/teacher/classes/${classId}/papers`">试卷</RouterLink> · 组卷
       </p>
       <h1>新建试卷</h1>
-      <p class="page-head__lede">固定题目或按条件随机抽题；保存后仍可发布或继续编辑。</p>
     </div>
   </header>
 

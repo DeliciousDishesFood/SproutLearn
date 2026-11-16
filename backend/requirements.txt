@@ -23,3 +23,4 @@ tzdata==2024.2
 pytest==8.3.4
 fakeredis==2.26.2
 cryptography==43.0.3
+websockets==17.4

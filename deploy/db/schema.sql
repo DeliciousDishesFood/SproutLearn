@@ -45,9 +45,20 @@ CREATE TABLE IF NOT EXISTS `class_bot_config` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   `class_id` BIGINT UNSIGNED NOT NULL,
   `app_id` VARCHAR(64) NOT NULL,
-  `app_secret_cipher` VARBINARY(512) NOT NULL,
   `callback_url` VARCHAR(255) DEFAULT NULL,
   `enabled` TINYINT NOT NULL DEFAULT 0,
+  `group_openid` VARCHAR(64) DEFAULT NULL,
+  `teacher_openid` VARCHAR(64) DEFAULT NULL,
+  `teacher_bound_at` DATETIME DEFAULT NULL,
+  `binding_enabled` TINYINT NOT NULL DEFAULT 1,
+  `notify_assignment` TINYINT NOT NULL DEFAULT 1,
+  `notify_due_soon` TINYINT NOT NULL DEFAULT 1,
+  `mention_missing` TINYINT NOT NULL DEFAULT 0,
+  `allow_query_assignments` TINYINT NOT NULL DEFAULT 1,
+  `allow_query_scores` TINYINT NOT NULL DEFAULT 0,
+  `bot_chat_mode` VARCHAR(16) NOT NULL DEFAULT 'balanced',
+  `bot_chat_enabled` TINYINT NOT NULL DEFAULT 1,
+  `bot_chat_max_chars` INT NOT NULL DEFAULT 600,
   `last_check_at` DATETIME DEFAULT NULL,
   `last_check_status` VARCHAR(16) NOT NULL DEFAULT 'never',
   `created_by` BIGINT UNSIGNED NOT NULL,
@@ -336,11 +347,47 @@ CREATE TABLE IF NOT EXISTS `paper` (
   `status` VARCHAR(16) NOT NULL DEFAULT 'draft',
   `created_by` BIGINT UNSIGNED NOT NULL,
   `published_at` DATETIME DEFAULT NULL,
+  `due_at` DATETIME DEFAULT NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_paper_class_status` (`class_id`, `status`),
   CONSTRAINT `fk_paper_class` FOREIGN KEY (`class_id`) REFERENCES `class` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='试卷';
+
+-- M3.4 通知中心
+CREATE TABLE IF NOT EXISTS `notification` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `recipient_role` VARCHAR(8) NOT NULL,
+  `recipient_id` BIGINT UNSIGNED NOT NULL,
+  `class_id` BIGINT UNSIGNED NOT NULL,
+  `type` VARCHAR(32) NOT NULL,
+  `title` VARCHAR(120) NOT NULL,
+  `body` VARCHAR(500) NOT NULL,
+  `target_path` VARCHAR(255) DEFAULT NULL,
+  `payload_json` JSON DEFAULT NULL,
+  `is_read` TINYINT NOT NULL DEFAULT 0,
+  `read_at` DATETIME DEFAULT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_notification_recipient` (`recipient_role`, `recipient_id`, `is_read`, `created_at`),
+  KEY `idx_notification_class_type` (`class_id`, `type`, `created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='通知中心';
+
+-- M3.4 机器人通知幂等
+CREATE TABLE IF NOT EXISTS `bot_notice` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `class_id` BIGINT UNSIGNED NOT NULL,
+  `paper_id` BIGINT UNSIGNED NOT NULL,
+  `kind` VARCHAR(32) NOT NULL,
+  `sent_at` DATETIME DEFAULT NULL,
+  `status` VARCHAR(16) NOT NULL DEFAULT 'pending',
+  `message_id` VARCHAR(64) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_bot_notice_paper_kind` (`paper_id`, `kind`),
+  KEY `idx_bot_notice_class` (`class_id`, `kind`),
+  CONSTRAINT `fk_bot_notice_class` FOREIGN KEY (`class_id`) REFERENCES `class` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_bot_notice_paper` FOREIGN KEY (`paper_id`) REFERENCES `paper` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='机器人通知幂等';
 
 -- M2B 6.3 paper_question
 CREATE TABLE IF NOT EXISTS `paper_question` (

@@ -6,8 +6,10 @@ import BaseBadge from '@/components/ui/BaseBadge.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseField from '@/components/ui/BaseField.vue'
 import BaseModal from '@/components/ui/BaseModal.vue'
+import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
 import BaseSelect from '@/components/ui/BaseSelect.vue'
 import BaseTabs from '@/components/ui/BaseTabs.vue'
+import BaseSkeleton from '@/components/ui/BaseSkeleton.vue'
 import PaginationBar from '@/components/ui/PaginationBar.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import { questionsApi } from '@/api/questions'
@@ -255,14 +257,29 @@ async function saveEdit(): Promise<void> {
 }
 
 async function remove(item: QuestionItem): Promise<void> {
-  if (!window.confirm('确定删除这道题吗？删除后不可恢复。')) return
+  deleteTarget.value = item
+  deleteOpen.value = true
+}
+
+const deleteOpen = ref(false)
+const deleting = ref(false)
+const deleteTarget = ref<QuestionItem | null>(null)
+
+async function confirmRemove(): Promise<void> {
+  const item = deleteTarget.value
+  if (!item) return
+  deleting.value = true
   try {
     await questionsApi.remove(item.id)
     toast.success('题目已删除')
     if (items.value.length === 1 && page.value > 1) page.value -= 1
+    deleteOpen.value = false
+    deleteTarget.value = null
     await loadQuestions()
   } catch (error) {
     toast.error(toUserMessage(error))
+  } finally {
+    deleting.value = false
   }
 }
 
@@ -277,7 +294,7 @@ const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'webp', 'gif']
 const MAX_IMPORT_SIZE = 20 * 1024 * 1024
 
 const importOpen = ref(false)
-const importMode = ref<ImportMode>('template')
+const importMode = ref<ImportMode>('ai')
 const importFile = ref<File | null>(null)
 const importBankId = ref('')
 const preview = ref<QuestionImportPreview | null>(null)
@@ -292,8 +309,8 @@ const fileInput = ref<HTMLInputElement | null>(null)
 let stageTimer: ReturnType<typeof setTimeout> | null = null
 
 const modeTabs = [
-  { key: 'template', label: '模板导入' },
   { key: 'ai', label: 'AI 智能识别' },
+  { key: 'template', label: '模板导入' },
 ]
 const importAccept = computed(() => (importMode.value === 'ai' ? AI_ACCEPT : TEMPLATE_ACCEPT))
 const modeFormats = computed(() =>
@@ -327,7 +344,8 @@ function resetImportState(): void {
 }
 
 function openImport(): void {
-  importMode.value = 'template'
+  // 默认进入 AI 识别；模板导入作为第二 tab 的降级路径。
+  importMode.value = 'ai'
   importBankId.value = filters.bank_id || ''
   resetImportState()
   importOpen.value = true
@@ -362,6 +380,11 @@ function applyFile(file: File | null): void {
     return
   }
   const ext = fileExt(file.name)
+  // 旧版二进制 .xls 不能被模板预览可靠解析，自动改走 AI 识别（ai-preview）。
+  if (ext === 'xls' && importMode.value === 'template') {
+    importMode.value = 'ai'
+    toast.info('.xls 旧格式已自动切换到 AI 智能识别')
+  }
   const allowed = importMode.value === 'ai' ? AI_EXTS : TEMPLATE_EXTS
   if (!allowed.includes(ext)) {
     fileError.value =
@@ -570,7 +593,6 @@ onMounted(async () => {
         <RouterLink :to="`/teacher/classes/${classId}/banks`">题库</RouterLink> · 题目
       </p>
       <h1>题目</h1>
-      <p class="page-head__lede">筛选、编辑与导入题目；讲评会取用知识库内容。</p>
     </div>
     <div class="page-head__actions">
       <BaseButton @click="openImport"><Upload :size="14" aria-hidden="true" />导入题目</BaseButton>
@@ -616,25 +638,20 @@ onMounted(async () => {
   </section>
 
   <section class="card">
-    <p v-if="loading" class="loading-line">正在读取题目…</p>
-    <EmptyState
-      v-else-if="items.length === 0"
-      title="没有符合条件的题目"
-      description="可以调整筛选条件，或从 Excel / CSV 导入一批题目。"
-      action-label="导入题目"
-      @action="openImport"
-    />
+    <BaseSkeleton v-if="loading" class="stack" :count="5" height="34px" />
+    <EmptyState v-else-if="items.length === 0" title="没有符合条件的题目" />
     <template v-else>
-      <div class="table-wrap">
-        <table class="table">
+      <p class="table-scroll-hint">左右滑动查看更多列</p>
+      <div class="table-wrap is-scrollable">
+        <table class="table questions-table">
           <thead>
             <tr>
               <th>题干</th>
               <th>类型</th>
-              <th>题库</th>
+              <th class="col-bank">题库</th>
               <th>知识点</th>
               <th>难度</th>
-              <th>更新时间</th>
+              <th class="col-updated">更新时间</th>
               <th class="num">操作</th>
             </tr>
           </thead>
@@ -647,10 +664,10 @@ onMounted(async () => {
                 </span>
               </td>
               <td>{{ QUESTION_TYPE_LABEL[item.type] }}</td>
-              <td>{{ item.bank_name ?? '—' }}</td>
+              <td class="col-bank">{{ item.bank_name ?? '—' }}</td>
               <td>{{ item.knowledge_tag }}</td>
               <td>{{ DIFFICULTY_LABEL[item.difficulty] }}</td>
-              <td class="tertiary">{{ formatDateTime(item.updated_at) }}</td>
+              <td class="col-updated">{{ formatDateTime(item.updated_at) }}</td>
               <td>
                 <div class="actions">
                   <button class="btn btn--sm" type="button" @click="explain(item)">
@@ -739,7 +756,20 @@ onMounted(async () => {
     @close="closeImport"
   >
     <div class="form">
-      <BaseTabs :model-value="importMode" :items="modeTabs" @update:model-value="onModeChange" />
+      <BaseTabs
+        id="import-tabs"
+        panel-id="import-tab-panel"
+        aria-label="导入方式"
+        :model-value="importMode"
+        :items="modeTabs"
+        @update:model-value="onModeChange"
+      />
+      <div
+        id="import-tab-panel"
+        class="stack"
+        role="tabpanel"
+        :aria-labelledby="`import-tabs-tab-${importMode}`"
+      >
       <p class="small muted" style="margin: 0">{{ modeHint }}</p>
       <p v-if="importMode === 'ai'" class="small tertiary" style="margin: 0">
         AI 识别可能出错，请预览确认后再入库。
@@ -879,6 +909,7 @@ onMounted(async () => {
           没有可导入的题目：请按提示修正文件后重新预览，或换一个文件。
         </p>
       </template>
+      </div>
     </div>
     <template #footer>
       <BaseButton @click="closeImport">取消</BaseButton>
@@ -902,6 +933,18 @@ onMounted(async () => {
       <BaseButton @click="explainOpen = false">关闭</BaseButton>
     </template>
   </BaseModal>
+
+  <ConfirmDialog
+    :open="deleteOpen"
+    title="删除题目"
+    :target="deleteTarget?.stem ?? ''"
+    message="删除后不可恢复，学生已有的作答记录不受影响。"
+    confirm-label="删除"
+    tone="danger"
+    :loading="deleting"
+    @confirm="confirmRemove"
+    @cancel="deleteOpen = false"
+  />
 </template>
 
 <style scoped>
@@ -979,5 +1022,25 @@ onMounted(async () => {
 
 .option-row .input {
   flex: 1;
+}
+
+@media (max-width: 640px) {
+  .col-bank,
+  .col-updated {
+    display: none;
+  }
+
+  /* 保留可读列宽，必须横滚时首列吸附（提示见 table-scroll-hint）。 */
+  .questions-table {
+    min-width: 540px;
+  }
+
+  .questions-table td:first-child {
+    max-width: 220px !important;
+  }
+
+  .actions {
+    flex-wrap: wrap;
+  }
 }
 </style>

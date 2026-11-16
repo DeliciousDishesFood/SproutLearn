@@ -132,7 +132,6 @@ onMounted(async () => {
     <div class="page-head__main">
       <p class="page-head__crumb">{{ auth.student?.class_name ?? '我的班级' }} · 试卷</p>
       <h1>试卷</h1>
-      <p class="page-head__lede">全部试卷与我的作答记录，点开即可开始或继续作答。</p>
     </div>
     <div class="page-head__actions">
       <RouterLink class="btn" to="/student">回到学习台</RouterLink>
@@ -148,12 +147,10 @@ onMounted(async () => {
       <span class="card__meta">共 {{ papersTotal }} 份</span>
     </header>
 
-    <p v-if="loading" class="loading-line">正在读取试卷…</p>
-    <EmptyState
-      v-else-if="papers.length === 0"
-      title="没有可作答试卷"
-      description="老师发布新练习后会出现在这里。"
-    />
+    <div v-if="loading" class="stack">
+      <div v-for="index in 4" :key="index" class="skeleton row-skeleton" />
+    </div>
+    <EmptyState v-else-if="papers.length === 0" title="没有可作答试卷" />
     <template v-else>
       <div class="table-wrap">
         <table class="table">
@@ -211,12 +208,10 @@ onMounted(async () => {
       <h2>我的作答记录</h2>
       <span class="card__meta">共 {{ mineTotal }} 条</span>
     </header>
-    <p v-if="loading" class="loading-line">正在读取作答记录…</p>
-    <EmptyState
-      v-else-if="mine.length === 0"
-      title="还没有完成记录"
-      description="完成并提交试卷后，成绩会展示在这里。"
-    />
+    <div v-if="loading" class="stack">
+      <div v-for="index in 4" :key="index" class="skeleton row-skeleton" />
+    </div>
+    <EmptyState v-else-if="mine.length === 0" title="还没有完成记录" />
     <template v-else>
       <div class="table-wrap" style="margin-top: 10px">
         <table class="table">

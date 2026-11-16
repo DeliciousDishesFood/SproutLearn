@@ -5,6 +5,7 @@ import BaseBadge from '@/components/ui/BaseBadge.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseField from '@/components/ui/BaseField.vue'
 import BaseModal from '@/components/ui/BaseModal.vue'
+import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
 import BaseSelect from '@/components/ui/BaseSelect.vue'
 import { papersApi } from '@/api/papers'
 import { toUserMessage } from '@/api/client'
@@ -102,15 +103,22 @@ async function saveEdit(): Promise<void> {
   }
 }
 
+const publishOpen = ref(false)
+const withdrawOpen = ref(false)
+
 async function publish(): Promise<void> {
   if (!paper.value || paper.value.status === 'published') return
-  if (!window.confirm('发布后学生即可看到并作答，确定发布吗？')) return
+  publishOpen.value = true
+}
+
+async function confirmPublish(): Promise<void> {
   acting.value = true
   errorText.value = ''
   try {
     const result = await papersApi.publish(paperId.value)
     paper.value = result
     groupNotice.value = result.group_notice ?? null
+    publishOpen.value = false
     toast.success('试卷已发布')
   } catch (error) {
     errorText.value = toUserMessage(error)
@@ -121,12 +129,16 @@ async function publish(): Promise<void> {
 
 async function withdraw(): Promise<void> {
   if (!paper.value || paper.value.status !== 'published') return
-  if (!window.confirm('撤回后学生列表将不再显示这份试卷，确定撤回吗？')) return
+  withdrawOpen.value = true
+}
+
+async function confirmWithdraw(): Promise<void> {
   acting.value = true
   errorText.value = ''
   try {
     const detail = await papersApi.withdraw(paperId.value)
     paper.value = detail
+    withdrawOpen.value = false
     toast.success('试卷已撤回')
   } catch (error) {
     errorText.value = toUserMessage(error)
@@ -271,4 +283,28 @@ onMounted(load)
       <BaseButton variant="primary" :loading="saving" @click="saveEdit">保存</BaseButton>
     </template>
   </BaseModal>
+
+  <ConfirmDialog
+    :open="publishOpen"
+    title="发布试卷"
+    :target="paper?.title ?? ''"
+    message="发布后学生即可看到并作答，通知会按班级配置推送。"
+    confirm-label="发布"
+    tone="primary"
+    :loading="acting"
+    @confirm="confirmPublish"
+    @cancel="publishOpen = false"
+  />
+
+  <ConfirmDialog
+    :open="withdrawOpen"
+    title="撤回试卷"
+    :target="paper?.title ?? ''"
+    message="撤回后学生列表不再显示这份试卷，已提交的作答仍保留。"
+    confirm-label="撤回"
+    tone="danger"
+    :loading="acting"
+    @confirm="confirmWithdraw"
+    @cancel="withdrawOpen = false"
+  />
 </template>

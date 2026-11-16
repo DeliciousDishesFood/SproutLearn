@@ -46,6 +46,25 @@ def test_bot_config(
     return success(bot_service.test_config(db, current, class_id=class_id))
 
 
+@router.post("/classes/{class_id}/bot-config/group-code")
+def group_code(
+    class_id: int,
+    current: CurrentUser = Depends(require_teacher),
+    db: Session = Depends(get_db),
+):
+    """M3.4 教师生成 10 分钟群绑定码（Redis，不落库）。"""
+    return success(bot_service.generate_group_code(db, current, class_id=class_id))
+
+
+@router.post("/classes/{class_id}/bot-config/group-bind-code")
+def group_bind_code(
+    class_id: int,
+    current: CurrentUser = Depends(require_teacher),
+    db: Session = Depends(get_db),
+):
+    return success(bot_service.generate_group_code(db, current, class_id=class_id))
+
+
 @router.get("/docs")
 def list_docs(current: CurrentUser = Depends(get_current_user)):
     """M3.3-04 文档清单。"""

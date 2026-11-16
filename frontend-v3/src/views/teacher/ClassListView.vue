@@ -103,7 +103,6 @@ onMounted(load)
     <div class="page-head__main">
       <p class="page-head__crumb">教学 · 班级</p>
       <h1>班级</h1>
-      <p class="page-head__lede">创建班级、查看学情，并把资料与练习组织到同一个班级里。</p>
     </div>
     <div class="page-head__actions">
       <BaseButton variant="primary" @click="openCreate">
@@ -114,14 +113,10 @@ onMounted(load)
 
   <p v-if="errorText && !modalOpen" class="notice notice--danger">{{ errorText }}</p>
 
-  <p v-if="loading" class="loading-line">正在读取班级…</p>
-  <EmptyState
-    v-else-if="classes.length === 0"
-    title="还没有班级"
-    description="创建第一个班级，系统会同时生成邀请码，学生可用它加入。"
-    action-label="创建班级"
-    @action="openCreate"
-  />
+  <div v-if="loading" class="grid-3">
+    <div v-for="index in 3" :key="index" class="skeleton card-skeleton" />
+  </div>
+  <EmptyState v-else-if="classes.length === 0" title="还没有班级" />
   <div v-else class="grid-3">
     <ClassCard v-for="item in classes" :key="item.id" :item="item" @click.prevent="openClass(item)" />
   </div>

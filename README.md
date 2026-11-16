@@ -1,185 +1,117 @@
 # 青芽 SproutLearn
 
-班级级教学辅助系统 M1 后端与部署工程：教师注册/登录、班级与邀请码、学生加入/登录、
-知识库批量上传与切片预览、QQ 绑定接口。目标是把“可运行、可验收、可继续开发”的工程骨架
-先落地，M2～M5 的题库、判分、检索与机器人业务不在本期实现。
+面向班级教学闭环的智能助学平台：教师资料形成知识库，围绕题库、组卷、作答、AI 讲评、成长反馈与 QQ 机器人提醒串联教学过程。
 
-## M1 范围
+## 当前主线
 
-### 已完成
+- **前端唯一主线：`frontend-v3/`**，Vue 3 + TypeScript + Vite，青柠亮绿与低饱和中性色。
+- `frontend/` 已冻结为旧 UI v2 / 原型参考，不再作为开发或生产入口。
+- 后端：`backend/`，FastAPI + SQLAlchemy + MySQL/SQLite + Redis。
+- QQ：自有 `app.qq_bot_worker`，包含群/学生绑定、作业与成绩查询、催交、通知和知识问答。
 
-- FastAPI 工程骨架：Settings、日志、统一响应体、全局异常、`X-Request-Id`、CORS、健康检查。
-- 13 张业务表：`deploy/db/schema.sql` + Alembic 初始迁移。
-- 鉴权：JWT（HS256）+ Redis 会话（滑动过期）+ 教师/学生角色依赖。
-- 班级：创建（`class_code` + 首个 `invite_code` 同事务）、列表、详情、学生列表。
-- 邀请码：查询、重置（`class` 表行锁，旧码立即失效）。
-- 学生：邀请码加入、班级编号 + 学号 + 密码登录。
-- 知识库：多文件上传、逐文件独立事务、白名单/大小/去重/扫描件拦截、切片落库与预览。
-- QQ：8 位一次性绑定码、机器人回调绑定、改绑、解绑。
-- pytest 冒烟测试与部署文件（prod/dev compose、nginx）。
+## 已交付能力
 
-### 明确未做（M2～M5）
+- 教师注册、学生邀请码入班、班级隔离与 Redis 会话。
+- 班级、题库、AI/模板导题、固定/随机组卷、试卷发布与撤回。
+- 作答草稿自动保存、客观题判分、主观题复核、AI 讲评与失败重试。
+- 知识库上传、切片、检索、“问问小芽”、成长 XP/等级/52 周热力。
+- 教师/学生工作台、通知、文档中心与响应式移动端。
+- QQ worker 预检、离线全命令 smoke、独立演示 SQL 与录制 runbook。
 
-题库导入、考试发布、判分、jev 接入、问答检索、机器人消息处理、经验值计算、学情看板。
-`app/services/retrieval`、`grading`、`bot` 仅为空包 + README；`VECTOR_INDEX_ENABLED=false`。
-
-## 技术栈
-
-- Python 3.11 / FastAPI / SQLAlchemy 2.0 / Alembic / PyMySQL
-- MySQL 8.0 / Redis 7 / Qdrant v1.12.4（M1 不写向量）
-- pytest + fakeredis（测试默认 SQLite，无需外部服务）
-
-## 环境要求
-
-- Docker Desktop（含 Docker Compose v2）
-- Python 3.11（仅本地跑测试/调试时需要）
-- Node 18+（构建前端静态产物时需要）
-
-## 一键启动（生产 compose）
-
-```bash
-# 1. 复制环境变量并填写 SECRET_KEY / MYSQL_PASSWORD / MYSQL_ROOT_PASSWORD / REDIS_PASSWORD / BOT_SHARED_SECRET
-cp .env.example .env
-
-# 2. 建库迁移
-docker compose -f deploy/docker-compose.yml run --rm api alembic upgrade head
-
-# 3. 启动
-docker compose -f deploy/docker-compose.yml up -d --build
-
-# 4. 验证
-curl http://127.0.0.1/health
-```
-
-> 前端镜像由 `frontend/Dockerfile` 提供；若前端窗口尚未交付，可先只启动 api/mysql/redis/qdrant
-> （`docker compose -f deploy/docker-compose.yml up -d mysql redis qdrant api`）。
->
-> 说明：Compose 的项目目录默认是 `deploy/`，因此服务密钥统一通过 `env_file: ../.env`
-> 注入，而不是用 `${MYSQL_PASSWORD}` 插值（否则从仓库根执行时插值为空）。
-> `MYSQL_ROOT_PASSWORD` 与 `MYSQL_PASSWORD` 建议填写相同值。
-
-## 开发启动（必须双 `-f`）
-
-```bash
-docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.dev.yml up -d
-cd frontend && npm run dev
-```
-
-- 后端在 `api` 容器内运行并开启 `--reload`，**宿主不要再起 uvicorn**（会端口冲突）。
-- 端口：API `127.0.0.1:8000`、MySQL `127.0.0.1:13306`、Redis `127.0.0.1:16379`、
-  Qdrant `127.0.0.1:6333/6334`、前端 `127.0.0.1:5173`。
-- `docker-compose.dev.yml` 顶部已注明“覆盖补丁，必须双 `-f`”。
-
-## API 文档
-
-启动后访问：
-
-- Swagger UI：`http://127.0.0.1:8000/docs`
-- OpenAPI JSON：`http://127.0.0.1:8000/openapi.json`
-- 健康检查：`http://127.0.0.1:8000/health`（派工词别名 `/api/v1/health` 同样可用，不进入 OpenAPI）
-
-20 个接口严格对齐契约 §7；字段统一 `snake_case`，响应统一为：
-
-```json
-{
-  "code": 0,
-  "message": "ok",
-  "data": {},
-  "request_id": "8f3c1a2b-...",
-  "timestamp": "2026-11-07 18:40:00"
-}
-```
-
-## 测试
-
-```bash
-cd backend
-python -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements.txt
-pytest -q
-```
-
-- 默认使用 SQLite + fakeredis，无需先启动 Docker；覆盖 8 个契约用例：
-  注册、建班、加入、重置旧码失效、混合上传、切片 `doc_name`、改绑、越权 403。
-- 真实 MySQL 表结构用 `deploy/db/schema.sql` 或 `alembic upgrade head` 验证。
-- 测试环境变量在 `backend/tests/conftest.py` 中集中设置，不读取生产 `.env`。
-
-## 演示数据
-
-M1 不内置演示数据初始化功能。执行顺序：
-
-1. `deploy/db/schema.sql` 或 `alembic upgrade head`
-2. `docs/demo/seed_data.sql`（可重复执行，脚本自带删除段）
-
-演示账号（密码统一 `Demo@123`）：
-
-| 角色 | 登录方式 |
-|---|---|
-| 教师 | `demo.teacher@school.edu.cn` |
-| 学生 | 班级编号 `C26A79` + 学号 `20260101` |
-
-题库演示数据：`docs/demo/题库演示数据.json`（通过系统导入功能加载，不写库）。
-
-## 常见问题
-
-| 问题 | 处理 |
-|---|---|
-| 13306 / 16379 / 8000 / 5173 端口占用 | 关闭占用进程，或调整 `docker-compose.dev.yml` 端口映射 |
-| 上传目录权限 | 确认 `uploads_data` 卷或 `../uploads` 目录可写；`UPLOAD_DIR` 默认 `/data/uploads` |
-| Qdrant 首次启动慢 | M1 `VECTOR_INDEX_ENABLED=false`，Qdrant 未就绪不影响 `/health` 的 mysql/redis 判定 |
-| 双 `-f` 只传一个 | dev 文件是覆盖补丁，单独执行会因 mysql/redis/qdrant 缺 `image` 报错 |
-| 前端未构建 | `web` 服务依赖 `frontend/Dockerfile`；可先只启动后端四服务 |
-
-## 目录结构
+## 目录
 
 ```text
 SproutLearn/
-├── backend/                 # FastAPI 后端
-│   ├── app/                 # 路由/服务/仓储/模型/策略
-│   ├── alembic/             # 初始迁移
-│   ├── tests/               # pytest 冒烟
-│   ├── Dockerfile
-│   └── requirements.txt
-├── frontend/                # Vue3 + TS 前端
-│   ├── src/                 # 页面/组件/api/styles
-│   ├── Dockerfile           # node 构建 → nginx 托管
-│   └── .env.development / .env.production
-├── deploy/
-│   ├── docker-compose.yml
-│   ├── docker-compose.dev.yml
-│   ├── db/schema.sql
-│   └── nginx/
-├── docs/                    # 需求与工程文档（见下节）
-├── .env.example
-├── .gitignore
+├── frontend-v3/        # 新前端主线（5174）
+├── frontend/           # 旧前端，冻结参考，不再部署
+├── backend/            # FastAPI、QQ worker、Alembic、pytest
+├── deploy/             # Docker Compose、MySQL schema、Nginx
+├── docs/
+│   ├── demo/           # 演示 SQL、数据说明、QQ 录制脚本
+│   ├── frontend-v3-contract/
+│   └── 派工-*.md
+├── PRODUCT.md
 └── README.md
 ```
 
-## 文档索引
+## 本地开发
 
-| 文档 | 内容 |
-|---|---|
-| `docs/智能助学平台M1落地需求文档（V1.0）.md` | M1 唯一实现契约：13 表 / 20 接口 / 36 条验收 / 错误码 / 部署（含变更单 C-001、C-002） |
-| `docs/智能助学平台产品需求文档（V1.2）.md` | 产品需求与班级编号、学生登录口径 |
-| `docs/PRD变更清单.md` | PRD V1.1 → V1.2 的 14 条变更 |
-| `docs/技术债与迭代计划（M1→M2）.md` | 技术债 TD-01～TD-13 与迭代节奏 |
-| `docs/项目决策日志.md` | 已拍板决策（含 M1 账号模型定版、M2 邮箱体系方向） |
-| `docs/M2学生邮箱账号体系升级需求（草案）.md` | M2 账号体系演进草案 |
+### 后端
 
-## 开发记录与提交规范
+```powershell
+cd backend
+python -m venv .venv
+.venv\Scripts\pip install -r requirements.txt
+.venv\Scripts\uvicorn app.main:app --reload --port 8000
+```
 
-- 仓库初始为 **Private**，M1 验收完成后转 Public；提交历史即开发记录。
-- 提交信息遵循 Conventional Commits：`feat(scope) / fix(scope) / docs / test / chore`，
-  正文用 `-` 列出改动点，一次提交只做一件事。
-- 分支：`main` 保持可运行；实验性改动另开分支，合并前跑 `pytest` 与 `npm run build`。
-- 敏感配置（`.env`、SMTP 授权码、数据库密码、密钥）一律不入库；提交前做敏感值扫描。
-- 演示数据与题库 JSON 放在 `docs/demo/`，可重复执行，不依赖系统内置初始化功能。
+QQ worker（需要真实 `QQ_BOT_APP_ID` / `QQ_BOT_APP_SECRET`，不得写进 SQL 或仓库）：
 
-## 安全与约束
+```powershell
+cd backend
+.venv\Scripts\python -m app.qq_bot_worker
+```
 
-- 不提交 `.env`、真实密钥、上传文件、截图、构建产物。
-- 业务阈值/时长/条数/长度全部走 `.env`；代码中只保留流程常量。
-- 所有仓储查询带 `class_id` 作用域；越权返回 `40302`，不泄露跨班数据。
-- M1 不引入 MinIO / OSS / K8s / 消息队列 / Celery，不做管理员角色、多学校入驻。
-- 验收清单：`docs/智能助学平台M1落地需求文档（V1.0）.md` 第 11 章。
+### 新前端
+
+```powershell
+cd frontend-v3
+npm ci
+npm run dev
+```
+
+访问 `http://127.0.0.1:5174`。Vite 默认代理到 `http://127.0.0.1:8000`，可用 `VITE_API_TARGET` 覆盖。
+
+## 演示数据
+
+v1.2 演示 SQL 使用独立数据库，包含 1 教师、1 班、10 学生、20 题、2 份试卷、知识文档和稀疏活动：
+
+- `docs/demo/seed_qq_demo_v1.2.mysql.sql`
+- `docs/demo/seed_qq_demo_v1.2.sqlite.sql`
+- `docs/demo/QQ机器人演示数据说明.md`
+- `docs/demo/QQ机器人录制脚本.md`
+
+演示账号：
+
+| 角色 | 账号 | 密码 |
+|---|---|---|
+| 教师 | `demo.teacher@school.edu.cn` | `Demo@123` |
+| 学生 | 班级 `C26A79` + 学号 `20260101–20260110` | `Demo@123` |
+
+先执行 `alembic upgrade head`，再导入到独立 demo 库；不要对现有业务库执行全表清理。SQLite 校验已通过；MySQL SQL 已生成并静态检查，尚未在目标 MySQL demo 库实跑。真实 QQ 群消息也尚未录制，在线预检通过不等于群链路已通过。
+
+## 验证
+
+```powershell
+cd backend
+.venv\Scripts\pytest -q
+
+cd ..\frontend-v3
+npm run typecheck
+npm run build
+node scripts/contrast-check.mjs
+```
+
+当前检查点实测：后端 **122 passed**；新前端 typecheck/build 通过；明暗主题对比度 **42/42 通过**。浏览器验收证据见 `frontend-v3/shots/v1.2/` 与 `frontend-v3/shots/v1.3-growth-track/`。
+
+## Docker Compose
+
+```powershell
+Copy-Item .env.example .env
+# 填写数据库、Redis、JWT、LLM、QQ 等密钥
+docker compose -f deploy/docker-compose.yml run --rm api alembic upgrade head
+docker compose -f deploy/docker-compose.yml up -d --build
+```
+
+`web` 服务由 `frontend-v3/Dockerfile` 构建，旧 `frontend/` 不再部署。服务包含 MySQL、Redis、Qdrant、API、QQ worker 和新前端 Nginx。
+
+## 下一阶段边界
+
+“账号与班级基础管理”作为独立小版本：先补密码规则、学生改密、教师一次性重置、强制改密、全会话撤销与文档角色过滤，再补教师改密、学生停用/恢复、班级归档/恢复。暂不引入邮箱找回、设备管理、审计中心、超级管理员或家长账号。
+
+## 提交与安全
+
+- `main` 保持可运行；大版本形成一个检查点提交，使用 Conventional Commits。
+- 不提交 `.env`、AppSecret、数据库密码、token、真实 openid、上传文件或构建产物。
+- 新功能必须带目标测试；涉及契约时同步后端 schema 与 `frontend-v3/src/api/contract.ts` 镜像。
+- P13 必须区分已实测、离线验证、在线预检和未做项，不把 mock 写成真实外部成功。

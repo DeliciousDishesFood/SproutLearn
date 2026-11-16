@@ -31,6 +31,7 @@ def _paper_brief(paper: Paper) -> dict[str, Any]:
         "total_score": float(paper.total_score or 0),
         "duration_minutes": paper.duration_minutes,
         "published_at": fmt_dt(paper.published_at),
+        "due_at": fmt_dt(paper.due_at),
         "created_at": fmt_dt(paper.created_at),
     }
 

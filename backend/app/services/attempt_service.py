@@ -24,8 +24,8 @@ from app.repositories.attempt_repo import AttemptRepository
 from app.repositories.paper_repo import PaperRepository
 from app.repositories.review_repo import ReviewRepository
 from app.schemas.attempt import AnswerSaveRequest, ReviewCreateRequest
+from app.services import growth_service, notification_service
 from app.services.attempt_view import attempt_time_fields
-from app.services import growth_service
 from app.services.class_service import require_owned_class
 from app.services.grading.grader import Grader
 from app.services.grading.result_service import sanitize_detail
@@ -423,6 +423,8 @@ def submit_attempt(db: Session, current: CurrentUser, *, attempt_id: int) -> dic
 
 def get_result(db: Session, current: CurrentUser, *, attempt_id: int) -> dict[str, Any]:
     attempt, paper = _require_attempt(db, current, attempt_id)
+    if current.role == "student" and attempt.status == "doing":
+        raise AppException(ErrorCode.ATTEMPT_SUBMITTED, "本次作答尚未提交，不能查看结果")
     return _result_payload(db, attempt, paper)
 
 
@@ -469,6 +471,7 @@ def get_attempt_resume(db: Session, current: CurrentUser, *, attempt_id: int) ->
             "title": paper.title,
             "duration_minutes": paper.duration_minutes,
             "blank_mode": paper.blank_mode,
+            "kind": paper.kind,
         },
         "questions": [_student_question(question, pq) for pq, question in rows],
         "answers": answers,
@@ -525,6 +528,20 @@ def review_attempt(
     )
     attempt.total_score = round(float(total), 2)
     attempt.status = "graded"
+    body = f"教师已复核，总分 {attempt.total_score}"
+    if payload.comment:
+        body += f"；评语：{payload.comment}"
+    notification_service.add(
+        db,
+        recipient_role="student",
+        recipient_id=attempt.student_id,
+        class_id=attempt.class_id,
+        type="grading_reviewed",
+        title=f"成绩已复核：{paper.title}",
+        body=body,
+        target_path=f"/student/attempts/{attempt.id}/result",
+        payload={"attempt_id": attempt.id, "total_score": float(attempt.total_score)},
+    )
     try:
         db.commit()
     except Exception:

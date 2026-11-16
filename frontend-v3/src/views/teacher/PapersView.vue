@@ -49,7 +49,6 @@ onMounted(load)
         <RouterLink :to="`/teacher/classes/${classId}`">班级</RouterLink> · 试卷
       </p>
       <h1>试卷</h1>
-      <p class="page-head__lede">组卷、发布与批改；发布后学生可在自己的试卷列表看到。</p>
     </div>
     <div class="page-head__actions">
       <RouterLink class="btn" :to="`/teacher/classes/${classId}/questions`">去题库</RouterLink>
@@ -67,14 +66,10 @@ onMounted(load)
       <span class="card__meta">共 {{ total }} 份</span>
     </header>
 
-    <p v-if="loading" class="loading-line">正在读取试卷…</p>
-    <EmptyState
-      v-else-if="papers.length === 0"
-      title="还没有试卷"
-      description="从题库组一份练习，发布后学生就能开始作答。"
-      action-label="新建试卷"
-      @action="$router.push(`/teacher/classes/${classId}/papers/new`)"
-    />
+    <div v-if="loading" class="stack">
+      <div v-for="index in 5" :key="index" class="skeleton row-skeleton" />
+    </div>
+    <EmptyState v-else-if="papers.length === 0" title="还没有试卷" />
     <template v-else>
       <PaperTable :rows="papers" />
       <PaginationBar :page="page" :page-size="pageSize" :total="total" @change="page = $event" />

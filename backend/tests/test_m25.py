@@ -91,7 +91,9 @@ def _events(response):
     return events
 
 
-def test_stream_template_first_and_sync_explain_compatible(client, teacher_token, klass):
+def test_stream_template_first_and_sync_explain_compatible(client, teacher_token, klass, monkeypatch):
+    monkeypatch.setattr(question_service, "build_chain", lambda settings: [])
+    monkeypatch.setattr(question_service, "_cache_get", lambda question: None)
     question_id = _create_question(client, teacher_token, klass["id"])
     started = time.perf_counter()
     with client.stream(
@@ -131,8 +133,8 @@ def test_stream_ai_delta_when_router_returns(client, teacher_token, klass, monke
     question_id = _create_question(client, teacher_token, klass["id"])
     monkeypatch.setattr(
         question_service,
-        "_ai_explain",
-        lambda question, stream=False: "AI 补充：先看题干，再核对标准答案。",
+        "_ai_explain_iter",
+        lambda question: iter(["AI 补充：先看题干，", "再核对标准答案。"]),
     )
     with client.stream(
         "POST",

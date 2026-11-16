@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.deps import CurrentUser
 from app.exceptions import AppException, ErrorCode
+from app.models.class_bot_config import ClassBotConfig
 from app.models.qq_binding import QqBinding
 from app.repositories.class_repo import ClassRepository
 from app.repositories.qq_binding_repo import QqBindingRepository
@@ -92,6 +93,13 @@ def bind_qq(db: Session, payload: QqBindCallbackRequest) -> dict:
     klass = ClassRepository(db).get_by_id(class_id)
     if student is None or student.status != 1 or klass is None or klass.status != 1:
         raise AppException(ErrorCode.BIND_CODE_INVALID, "绑定码无效或已过期")
+    bot_config = (
+        db.query(ClassBotConfig)
+        .filter(ClassBotConfig.class_id == class_id)
+        .one_or_none()
+    )
+    if bot_config is not None and not bot_config.binding_enabled:
+        raise AppException(ErrorCode.CLASS_FORBIDDEN, "老师未开放机器人绑定")
 
     binding_repo = QqBindingRepository(db)
     existing_openid = binding_repo.get_active_by_openid(payload.qq_openid)
@@ -141,3 +149,17 @@ def unbind_qq(db: Session, current: CurrentUser) -> None:
         raise AppException(ErrorCode.NOT_FOUND, "当前没有 QQ 绑定")
     binding.status = 0
     db.commit()
+
+
+def bind_qq_by_openid(db: Session, *, code: str, qq_openid: str) -> dict:
+    """机器人消息入口：把 openid + 8 位码交给现有绑定逻辑。"""
+    return bind_qq(db, QqBindCallbackRequest(code=code, qq_openid=qq_openid))
+
+
+def unbind_qq_by_openid(db: Session, *, qq_openid: str) -> bool:
+    binding = QqBindingRepository(db).get_active_by_openid(qq_openid)
+    if binding is None:
+        return False
+    binding.status = 0
+    db.commit()
+    return True

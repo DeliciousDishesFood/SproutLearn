@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { onBeforeUnmount, watch } from 'vue'
+import { ref, useId } from 'vue'
+import { useFocusTrap } from '@/composables/useFocusTrap'
 
 const props = withDefaults(
   defineProps<{
@@ -14,22 +15,18 @@ const props = withDefaults(
 
 const emit = defineEmits<{ (event: 'close'): void }>()
 
-function onKey(event: KeyboardEvent): void {
-  if (event.key === 'Escape' && props.open) emit('close')
-}
+const panel = ref<HTMLElement | null>(null)
+const titleId = `modal-title-${useId()}`
+const descriptionId = `modal-desc-${useId()}`
 
-watch(
-  () => props.open,
-  (open) => {
-    if (open) document.addEventListener('keydown', onKey)
-    else document.removeEventListener('keydown', onKey)
-    document.body.style.overflow = open ? 'hidden' : ''
+// 焦点圈定、Escape、body overflow 与焦点恢复都由同一个 composable 负责。
+useFocusTrap({
+  active: () => props.open,
+  container: panel,
+  onEscape: () => {
+    if (!props.closeOnMask) return
+    emit('close')
   },
-)
-
-onBeforeUnmount(() => {
-  document.removeEventListener('keydown', onKey)
-  document.body.style.overflow = ''
 })
 </script>
 
@@ -41,11 +38,19 @@ onBeforeUnmount(() => {
       role="presentation"
       @mousedown.self="closeOnMask && emit('close')"
     >
-      <div class="modal" :class="{ 'modal--wide': wide }" role="dialog" aria-modal="true">
+      <div
+        ref="panel"
+        class="modal"
+        :class="{ 'modal--wide': wide }"
+        role="dialog"
+        aria-modal="true"
+        :aria-labelledby="titleId"
+        :aria-describedby="description ? descriptionId : undefined"
+      >
         <header class="modal__head">
           <div>
-            <h2>{{ title }}</h2>
-            <p v-if="description">{{ description }}</p>
+            <h2 :id="titleId">{{ title }}</h2>
+            <p v-if="description" :id="descriptionId">{{ description }}</p>
           </div>
           <button class="modal__close" type="button" aria-label="关闭" @click="emit('close')">
             ×

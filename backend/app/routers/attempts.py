@@ -6,8 +6,8 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.deps import CurrentUser, get_current_user, get_db, require_student, require_teacher
-from app.schemas.attempt import AnswerSaveRequest, ReviewCreateRequest
-from app.services import attempt_service, paper_service
+from app.schemas.attempt import AnswerSaveRequest, AskSproutRequest, ReviewCreateRequest
+from app.services import attempt_service, paper_service, student_chat_service
 from app.utils.response import success
 
 router = APIRouter(tags=["attempts"])
@@ -56,6 +56,24 @@ def save_answer(
             current,
             attempt_id=attempt_id,
             question_id=question_id,
+            payload=payload,
+        )
+    )
+
+
+@router.post("/attempts/{attempt_id}/ask")
+def ask_sprout(
+    attempt_id: int,
+    payload: AskSproutRequest,
+    current: CurrentUser = Depends(require_student),
+    db: Session = Depends(get_db),
+):
+    """API-M36 练习页「问问小芽」：苏格拉底式引导，不返回标准答案。"""
+    return success(
+        student_chat_service.ask_sprout(
+            db,
+            current,
+            attempt_id=attempt_id,
             payload=payload,
         )
     )

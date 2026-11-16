@@ -19,7 +19,11 @@ export const authApi = {
   },
 
   logout(): Promise<null> {
-    return api.post<null>('/auth/logout', undefined, { skipGlobalError: true })
+    // 登出失败不再触发全局 401 跳转，本地会话由 store 统一清理。
+    return api.post<null>('/auth/logout', undefined, {
+      skipGlobalError: true,
+      skipAuthRedirect: true,
+    })
   },
 
   me(): Promise<AuthUser> {

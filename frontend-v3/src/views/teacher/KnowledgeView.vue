@@ -5,6 +5,7 @@ import { Upload, X } from 'lucide-vue-next'
 import BaseCard from '@/components/ui/BaseCard.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseField from '@/components/ui/BaseField.vue'
+import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
 import DocCard from '@/components/business/DocCard.vue'
 import PaginationBar from '@/components/ui/PaginationBar.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
@@ -145,15 +146,30 @@ async function upload(): Promise<void> {
   }
 }
 
-async function removeDoc(item: KnowledgeDocListItem): Promise<void> {
-  if (!window.confirm(`确定删除《${item.title}》吗？切片会一并删除。`)) return
+const deleteOpen = ref(false)
+const deleting = ref(false)
+const deleteTarget = ref<KnowledgeDocListItem | null>(null)
+
+function removeDoc(item: KnowledgeDocListItem): void {
+  deleteTarget.value = item
+  deleteOpen.value = true
+}
+
+async function confirmRemoveDoc(): Promise<void> {
+  const item = deleteTarget.value
+  if (!item) return
+  deleting.value = true
   try {
     await knowledgeApi.remove(item.id)
     toast.success('文档已删除')
     if (docs.value.length === 1 && page.value > 1) page.value -= 1
+    deleteOpen.value = false
+    deleteTarget.value = null
     await load()
   } catch (error) {
     toast.error(toUserMessage(error))
+  } finally {
+    deleting.value = false
   }
 }
 
@@ -169,7 +185,6 @@ onMounted(load)
         <RouterLink :to="`/teacher/classes/${classId}`">班级</RouterLink> · 知识库
       </p>
       <h1>知识库</h1>
-      <p class="page-head__lede">上传课程资料，系统会解析并切片，讲评与问答都会引用这里的内容。</p>
     </div>
     <div class="page-head__actions">
       <RouterLink class="btn" :to="`/teacher/classes/${classId}/banks`">去题库</RouterLink>
@@ -226,7 +241,7 @@ onMounted(load)
       </div>
 
       <div v-if="uploading" class="stack" style="gap: 6px">
-        <div class="progress__bar"><i :style="{ width: `${progress}%` }" /></div>
+        <div class="progress__bar"><i :style="{ transform: `scaleX(${progress / 100})` }" /></div>
         <span class="small tertiary">上传中 {{ progress }}%</span>
       </div>
       <p v-if="uploadError" class="form-error">{{ uploadError }}</p>
@@ -277,11 +292,7 @@ onMounted(load)
     </div>
 
     <p v-if="loading" class="loading-line">正在读取资料…</p>
-    <EmptyState
-      v-else-if="docs.length === 0"
-      title="这里还没有资料"
-      description="上传第一份课程资料后，系统会自动解析并切片。"
-    />
+    <EmptyState v-else-if="docs.length === 0" title="这里还没有资料" />
     <div v-else class="grid-2">
       <DocCard
         v-for="item in docs"
@@ -293,4 +304,16 @@ onMounted(load)
     </div>
     <PaginationBar :page="page" :page-size="pageSize" :total="total" @change="page = $event" />
   </section>
+
+  <ConfirmDialog
+    :open="deleteOpen"
+    title="删除资料"
+    :target="deleteTarget?.title ?? ''"
+    message="文档与它的全部切片会一并删除，讲评与问答将不再引用。"
+    confirm-label="删除"
+    tone="danger"
+    :loading="deleting"
+    @confirm="confirmRemoveDoc"
+    @cancel="deleteOpen = false"
+  />
 </template>

@@ -39,7 +39,6 @@ onMounted(async () => {
         · 设置
       </p>
       <h1>班级设置</h1>
-      <p class="page-head__lede">机器人授权、群绑定与成长经验规则。</p>
     </div>
     <div class="page-head__actions">
       <RouterLink class="btn" :to="`/teacher/classes/${classId}`">返回班级</RouterLink>

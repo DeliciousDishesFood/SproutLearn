@@ -1,8 +1,9 @@
-"""模型包：统一导入，保证 Base.metadata 包含 M1 13 表 + M2A/M2B/M3.1/M3.2 表。"""
+"""模型包：统一导入，保证 Base.metadata 包含 M1/M2/M3 全部业务表。"""
 
 from app.models.answer_record import AnswerRecord
 from app.models.attempt import Attempt
 from app.models.base import Base
+from app.models.bot_notice import BotNotice
 from app.models.class_ import Class
 from app.models.class_bot_config import ClassBotConfig
 from app.models.class_invite import ClassInvite
@@ -14,6 +15,7 @@ from app.models.knowledge_chunk import KnowledgeChunk
 from app.models.knowledge_doc import KnowledgeDoc
 from app.models.level_def import LevelDef
 from app.models.login_streak_rule import LoginStreakRule
+from app.models.notification import Notification
 from app.models.paper import Paper
 from app.models.paper_question import PaperQuestion
 from app.models.qq_binding import QqBinding
@@ -32,6 +34,8 @@ __all__ = [
     "Teacher",
     "Class",
     "ClassBotConfig",
+    "BotNotice",
+    "Notification",
     "ClassInvite",
     "ClassXpSwitch",
     "Student",

@@ -84,7 +84,6 @@ onMounted(load)
         · 批改复核
       </p>
       <h1>{{ result?.paper.title ?? '批改复核' }}</h1>
-      <p class="page-head__lede">逐题查看学生答案与标准答案，待复核题目可直接修改得分。</p>
     </div>
     <div class="page-head__actions">
       <RouterLink

@@ -25,28 +25,28 @@ web
 - 教师：建班 → 上传课件/讲义 → 导入题库 → 组卷发布 → 查看作答 → 复核主观题 → 看班级工作台。
 - 学生：邀请码入班 → 学习台看今日任务 → 作答 → 看成绩与讲评 → 积累经验/等级。
 - 部署：Docker Compose（FastAPI + MySQL + Redis + Qdrant + Vue），目标云服务器 + 域名 HTTPS；演示可用本地真栈。
-- 外部依赖：DeepSeek/GLM 讲评、Jev 判分、QQ 开放平台机器人（AstrBot 运行）。
-- 演示素材：seed SQL、题库 JSON、教师/学生演示账号、历史截图。
+- 外部依赖：DeepSeek/GLM 讲评、Jev 判分、QQ 开放平台机器人（自有 worker）。
+- 演示素材：v1.2 MySQL/SQLite seed SQL、题库 JSON、教师/学生演示账号、历史截图。
 
 ## Capabilities and Constraints
 
 - 已交付：账号与班级、知识库与切片、题库与题库分类、组卷（固定/随机/整库）、作答与草稿恢复、客观题判分、主观题复核、讲评流式与 Markdown、成长体系（经验/等级/连击/热力图）、教师/学生工作台、QQ 机器人配置、文档中心。
 - 约束：单校多班、班级级隔离；无平台管理员；不做技术防作弊；不做移动端原生 App；AI 主观题结果必须经教师确认；不重置业务数据；不做内置演示数据初始化。
-- 技术事实：前端 Vue 3 + TypeScript + Vite；颜色只从 `frontend/src/styles/tokens.css` 取；Markdown 只从 `frontend/src/utils/markdown.ts` 输出；后端接口前缀 `/api/v1`。
+- 技术事实：主线前端 `frontend-v3/`（Vue 3 + TypeScript + Vite），旧 `frontend/` 冻结为历史参考；颜色只从 `frontend-v3/src/design/tokens.css` 取；Markdown 只从 `frontend-v3/src/utils/markdown.ts` 输出；后端接口前缀 `/api/v1`。
 - 未决：官网独立子域名与公网部署时点；移动端适配深度；学生自建题库是否赛后补做。
 
 ## Brand Commitments
 
 - 名称：中文「青芽」，英文「SproutLearn」；已有嫩芽图形标记。
-- 现有色彩承诺：墨绿 + 暖金 + 暖白；不做糖果色、不做默认 Tailwind/Element 观感。
+- 现有色彩承诺：青柠亮绿 + 石墨品牌画布 + 低饱和中性色；细边线、清晰层级，不做糖果色、默认 Tailwind/Element 观感或全页泛绿。
 - 语气：清楚、克制、有教学温度；不用夸张营销话术，不编造用户数据与成绩。
 
 ## Evidence on Hand
 
 - 产品需求文档：`E:\ai-dev-projects\智能助学平台\docs\智能助学平台产品需求文档（V1.2）.md`
-- 演示数据与账号：`docs/demo/seed_data.sql`、`题库演示数据.json`；教师 `demo.teacher@school.edu.cn`，学生 `C26A79 + 20260101`。
-- 真实截图：`E:\temporary-work\trae-work\m3.0-shots`、`m3.1-shots`、`m3.2-shots`、`m3.3-shots`。
-- 代码与迁移：`backend/alembic/versions/0001–0008`；`frontend/src/**`。
+- 演示数据与账号：`docs/demo/seed_qq_demo_v1.2.mysql.sql`、`seed_qq_demo_v1.2.sqlite.sql`；教师 `demo.teacher@school.edu.cn`，学生 `C26A79 + 20260101–20260110`。
+- 真实截图：`frontend-v3/shots/v1.2/`、`frontend-v3/shots/v1.3-growth-track/`。
+- 代码与迁移：`backend/alembic/versions/0001–0010`；主线前端 `frontend-v3/src/**`。
 - 不存在可对外宣称的真实用户量、学校合作、获奖记录或商业成绩，官网不得编造。
 
 ## Product Principles

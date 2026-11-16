@@ -68,7 +68,6 @@ onMounted(load)
     <div class="page-head__main">
       <p class="page-head__crumb">资料 · 文档中心</p>
       <h1>文档中心</h1>
-      <p class="page-head__lede">使用说明与常见问题，正文经过安全清洗后展示。</p>
     </div>
   </header>
 

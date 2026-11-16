@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -24,6 +25,7 @@ class PaperCreateRequest(BaseModel):
     duration_minutes: int = Field(default=0, ge=0)
     shuffle: bool = False
     blank_mode: BlankMode = "smart"
+    due_at: datetime | None = None
 
     @field_validator("title")
     @classmethod
@@ -55,6 +57,7 @@ class PaperUpdateRequest(BaseModel):
     duration_minutes: int | None = Field(default=None, ge=0)
     blank_mode: BlankMode | None = None
     kind: PaperKind | None = None
+    due_at: datetime | None = None
 
     @field_validator("title")
     @classmethod

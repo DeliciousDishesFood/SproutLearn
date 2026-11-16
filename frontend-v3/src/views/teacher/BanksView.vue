@@ -5,6 +5,7 @@ import { Plus } from 'lucide-vue-next'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseField from '@/components/ui/BaseField.vue'
 import BaseModal from '@/components/ui/BaseModal.vue'
+import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import { banksApi } from '@/api/banks'
 import { toUserMessage } from '@/api/client'
@@ -85,14 +86,29 @@ async function save(): Promise<void> {
   }
 }
 
+const deleteOpen = ref(false)
+const deleting = ref(false)
+const deleteTarget = ref<QuestionBank | null>(null)
+
 async function remove(bank: QuestionBank): Promise<void> {
-  if (!window.confirm(`确定删除题库「${bank.name}」吗？`)) return
+  deleteTarget.value = bank
+  deleteOpen.value = true
+}
+
+async function confirmRemove(): Promise<void> {
+  const bank = deleteTarget.value
+  if (!bank) return
+  deleting.value = true
   try {
     await banksApi.remove(bank.id)
     toast.success('题库已删除')
+    deleteOpen.value = false
+    deleteTarget.value = null
     await load()
   } catch (error) {
     toast.error(toUserMessage(error))
+  } finally {
+    deleting.value = false
   }
 }
 
@@ -106,7 +122,6 @@ onMounted(load)
         <RouterLink :to="`/teacher/classes/${classId}`">班级</RouterLink> · 题库
       </p>
       <h1>题库</h1>
-      <p class="page-head__lede">按知识点分库管理题目，组卷时可从指定题库抽题。</p>
     </div>
     <div class="page-head__actions">
       <BaseButton variant="primary" @click="openCreate">
@@ -117,14 +132,10 @@ onMounted(load)
 
   <p v-if="errorText && !modalOpen" class="notice notice--danger">{{ errorText }}</p>
 
-  <p v-if="loading" class="loading-line">正在读取题库…</p>
-  <EmptyState
-    v-else-if="banks.length === 0"
-    title="还没有题库"
-    description="先建一个题库，再把题目导入或手动维护到题库里。"
-    action-label="新建题库"
-    @action="openCreate"
-  />
+  <div v-if="loading" class="grid-3">
+    <div v-for="index in 3" :key="index" class="skeleton card-skeleton" />
+  </div>
+  <EmptyState v-else-if="banks.length === 0" title="还没有题库" />
   <div v-else class="grid-3">
     <article v-for="bank in banks" :key="bank.id" class="card stack">
       <header class="card__head">
@@ -166,4 +177,16 @@ onMounted(load)
       <BaseButton variant="primary" :loading="saving" @click="save">保存</BaseButton>
     </template>
   </BaseModal>
+
+  <ConfirmDialog
+    :open="deleteOpen"
+    title="删除题库"
+    :target="deleteTarget?.name ?? ''"
+    message="题库内仍有题目时无法删除；删除后不可恢复。"
+    confirm-label="删除"
+    tone="danger"
+    :loading="deleting"
+    @confirm="confirmRemove"
+    @cancel="deleteOpen = false"
+  />
 </template>

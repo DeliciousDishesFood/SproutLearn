@@ -50,7 +50,6 @@ onMounted(load)
         <RouterLink :to="`/teacher/papers/${paperId}`">试卷详情</RouterLink> · 作答列表
       </p>
       <h1>{{ paper?.title ?? '作答列表' }}</h1>
-      <p class="page-head__lede">按学生查看作答状态与得分，待复核题目可进入结果页逐题复核。</p>
     </div>
     <div class="page-head__actions">
       <RouterLink class="btn" :to="`/teacher/papers/${paperId}`">返回试卷</RouterLink>
@@ -66,12 +65,10 @@ onMounted(load)
       <span class="card__meta">共 {{ total }} 人次</span>
     </header>
 
-    <p v-if="loading" class="loading-line">正在读取作答…</p>
-    <EmptyState
-      v-else-if="attempts.length === 0"
-      title="还没有学生作答"
-      description="试卷发布后，学生开始作答就会出现在这里。"
-    />
+    <div v-if="loading" class="stack">
+      <div v-for="index in 5" :key="index" class="skeleton row-skeleton" />
+    </div>
+    <EmptyState v-else-if="attempts.length === 0" title="还没有学生作答" />
     <template v-else>
       <div class="table-wrap">
         <table class="table">

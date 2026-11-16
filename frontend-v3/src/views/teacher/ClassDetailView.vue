@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { BookOpen, ClipboardList, FileText, RefreshCw, Settings, Users } from 'lucide-vue-next'
 import BaseTabs from '@/components/ui/BaseTabs.vue'
 import BaseBadge from '@/components/ui/BaseBadge.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
+import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
 import StudentTable from '@/components/business/StudentTable.vue'
 import PaginationBar from '@/components/ui/PaginationBar.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
@@ -22,7 +23,6 @@ import { useUiStore } from '@/stores/ui'
 import { useToast } from '@/composables/useToast'
 
 const route = useRoute()
-const router = useRouter()
 const ui = useUiStore()
 const toast = useToast()
 
@@ -104,8 +104,13 @@ function search(): void {
   void loadStudents()
 }
 
+const resetOpen = ref(false)
+
 async function resetInvite(): Promise<void> {
-  if (!window.confirm('重置后旧邀请码立即失效，已加入的学生不受影响。确定重置吗？')) return
+  resetOpen.value = true
+}
+
+async function confirmResetInvite(): Promise<void> {
   resetting.value = true
   try {
     const result = await classesApi.resetInviteCode(classId.value)
@@ -113,6 +118,7 @@ async function resetInvite(): Promise<void> {
       ? { ...invite.value, invite_code: result.invite_code, created_at: result.created_at }
       : null
     toast.success('邀请码已重置')
+    resetOpen.value = false
     await loadDetail()
   } catch (error) {
     toast.error(toUserMessage(error))
@@ -151,9 +157,6 @@ onMounted(async () => {
         <RouterLink to="/teacher/classes">班级</RouterLink> · {{ detail?.class_name ?? '班级详情' }}
       </p>
       <h1>{{ detail?.class_name ?? '班级详情' }}</h1>
-      <p class="page-head__lede">
-        {{ detail?.course_name ?? '—' }} · 班级编号 {{ detail?.class_code ?? '—' }}
-      </p>
     </div>
     <div class="page-head__actions">
       <RouterLink
@@ -168,11 +171,24 @@ onMounted(async () => {
   <p v-if="errorText" class="notice notice--danger">{{ errorText }}</p>
 
   <section class="card">
-    <BaseTabs v-model="tab" :items="tabs" />
+    <BaseTabs
+      v-model="tab"
+      :items="tabs"
+      id="class-tabs"
+      panel-id="class-tab-panel"
+      aria-label="班级信息"
+    />
 
     <div v-if="loading" class="loading-line">正在读取班级…</div>
 
-    <div v-else-if="tab === 'overview'" class="stack" style="padding-top: 14px">
+    <div
+      v-else-if="tab === 'overview'"
+      id="class-tab-panel"
+      class="stack"
+      role="tabpanel"
+      :aria-labelledby="`class-tabs-tab-${tab}`"
+      style="padding-top: 14px"
+    >
       <div class="kv">
         <span>学生人数：<b>{{ detail?.student_count ?? 0 }}</b></span>
         <span>资料数量：<b>{{ detail?.doc_count ?? 0 }}</b></span>
@@ -196,13 +212,7 @@ onMounted(async () => {
         <h2>最近试卷</h2>
         <RouterLink class="card__link" :to="`/teacher/classes/${classId}/papers`">查看全部</RouterLink>
       </div>
-      <EmptyState
-        v-if="recentPapers.length === 0"
-        title="还没有试卷"
-        description="从题库组一份练习，发布后学生会收到作答提醒。"
-        action-label="去组卷"
-        @action="router.push(`/teacher/classes/${classId}/papers/new`)"
-      />
+      <EmptyState v-if="recentPapers.length === 0" title="还没有试卷" />
       <div v-else class="table-wrap">
         <table class="table">
           <thead>
@@ -240,7 +250,14 @@ onMounted(async () => {
       </div>
     </div>
 
-    <div v-else-if="tab === 'students'" class="stack" style="padding-top: 14px">
+    <div
+      v-else-if="tab === 'students'"
+      id="class-tab-panel"
+      class="stack"
+      role="tabpanel"
+      :aria-labelledby="`class-tabs-tab-${tab}`"
+      style="padding-top: 14px"
+    >
       <form class="row row--wrap" @submit.prevent="search">
         <input
           v-model="keyword"
@@ -256,7 +273,6 @@ onMounted(async () => {
       <EmptyState
         v-else-if="students.length === 0"
         title="还没有学生"
-        description="把邀请码发给学生，学生用邀请码即可加入班级。"
         action-label="查看邀请码"
         @action="tab = 'invite'"
       />
@@ -266,7 +282,14 @@ onMounted(async () => {
       </template>
     </div>
 
-    <div v-else class="stack" style="padding-top: 14px">
+    <div
+      v-else
+      id="class-tab-panel"
+      class="stack"
+      role="tabpanel"
+      :aria-labelledby="`class-tabs-tab-${tab}`"
+      style="padding-top: 14px"
+    >
       <div class="notice">
         当前邀请码：
         <span class="copy-code" style="margin: 0 6px">
@@ -290,4 +313,15 @@ onMounted(async () => {
       <p class="foot"><Users :size="12" aria-hidden="true" /> 已加入 {{ detail?.student_count ?? 0 }} 名学生</p>
     </div>
   </section>
+
+  <ConfirmDialog
+    :open="resetOpen"
+    title="重置邀请码"
+    message="旧邀请码会立即失效，已加入的学生不受影响。"
+    confirm-label="重置"
+    tone="danger"
+    :loading="resetting"
+    @confirm="confirmResetInvite"
+    @cancel="resetOpen = false"
+  />
 </template>

@@ -63,7 +63,6 @@ async function submit(): Promise<void> {
             <li><i></i>经验、等级与成长记录自动累计</li>
           </ul>
         </div>
-        <p class="story__quote">“每一次认真作答，都会留下痕迹。”<span>青芽学习手记</span></p>
       </section>
 
       <section class="login-form-wrap">

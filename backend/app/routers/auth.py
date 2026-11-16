@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.deps import CurrentUser, get_current_user, get_token_claims
+from app.deps import CurrentUser, get_current_user, get_token_claims_optional
 from app.database import get_db
 from app.middleware import rate_limit
 from app.middleware.rate_limit import client_ip
@@ -38,9 +38,10 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
 
 
 @router.post("/logout")
-def logout(payload: dict = Depends(get_token_claims)):
-    """API-03 登出：删除会话并写黑名单，重复登出仍返回成功（幂等）。"""
-    auth_service.logout_claims(payload)
+def logout(payload: dict | None = Depends(get_token_claims_optional)):
+    """API-03 登出：合法 token 删会话/写黑名单；无 token/坏 token/重复也 200。"""
+    if payload:
+        auth_service.logout_claims(payload)
     return success(None)
 
 

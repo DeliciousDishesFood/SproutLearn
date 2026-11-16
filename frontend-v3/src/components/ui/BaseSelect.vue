@@ -42,6 +42,11 @@ function same(a: SelectValue, b: SelectValue): boolean {
 
 const selected = computed(() => props.options.find((item) => same(item.value, model.value)) ?? null)
 
+/** 每个 option 的稳定 id，供 aria-activedescendant 引用。 */
+function optionId(index: number): string {
+  return `${listId}-opt-${index}`
+}
+
 function position(): void {
   const rect = trigger.value?.getBoundingClientRect()
   if (!rect) return
@@ -109,6 +114,15 @@ function choose(index: number): void {
   trigger.value?.focus()
 }
 
+function firstEnabled(from = 0, step = 1): number {
+  const total = props.options.length
+  for (let i = 0; i < total; i += 1) {
+    const index = (from + step * i + total * 2) % total
+    if (!props.options[index]?.disabled) return index
+  }
+  return -1
+}
+
 function move(step: number): void {
   const total = props.options.length
   if (total === 0) return
@@ -133,6 +147,7 @@ function onKeydown(event: KeyboardEvent): void {
   if (event.key === 'Escape') {
     event.preventDefault()
     close()
+    trigger.value?.focus()
   } else if (event.key === 'ArrowDown') {
     event.preventDefault()
     move(1)
@@ -141,10 +156,18 @@ function onKeydown(event: KeyboardEvent): void {
     move(-1)
   } else if (event.key === 'Home') {
     event.preventDefault()
-    activeIndex.value = 0
+    const index = firstEnabled(0, 1)
+    if (index >= 0) {
+      activeIndex.value = index
+      pop.value?.querySelectorAll<HTMLElement>('.select__option')[index]?.scrollIntoView({ block: 'nearest' })
+    }
   } else if (event.key === 'End') {
     event.preventDefault()
-    activeIndex.value = props.options.length - 1
+    const index = firstEnabled(props.options.length - 1, -1)
+    if (index >= 0) {
+      activeIndex.value = index
+      pop.value?.querySelectorAll<HTMLElement>('.select__option')[index]?.scrollIntoView({ block: 'nearest' })
+    }
   } else if (event.key === 'Enter' || event.key === ' ') {
     event.preventDefault()
     choose(activeIndex.value)
@@ -167,6 +190,7 @@ onBeforeUnmount(unbind)
       :aria-label="ariaLabel || undefined"
       :aria-expanded="open"
       :aria-controls="open ? listId : undefined"
+      :aria-activedescendant="open && activeIndex >= 0 ? optionId(activeIndex) : undefined"
       aria-haspopup="listbox"
       @click="toggle"
       @keydown="onKeydown"
@@ -192,6 +216,7 @@ onBeforeUnmount(unbind)
       >
         <button
           v-for="(option, index) in options"
+          :id="optionId(index)"
           :key="String(option.value) + index"
           class="select__option"
           :class="{ 'is-active': index === activeIndex, 'is-selected': same(option.value, model) }"

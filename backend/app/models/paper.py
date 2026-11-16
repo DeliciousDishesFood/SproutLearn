@@ -26,4 +26,5 @@ class Paper(Base):
     status = Column(String(16), nullable=False, default="draft", server_default="draft")
     created_by = Column(bigint_unsigned(), nullable=False)
     published_at = Column(DateTime, nullable=True)
+    due_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP"))

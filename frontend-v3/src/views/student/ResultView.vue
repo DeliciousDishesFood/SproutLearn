@@ -10,7 +10,6 @@ import { isApiError, toUserMessage } from '@/api/client'
 import type { AttemptAnswer, AttemptResult } from '@/api/contract'
 import {
   ATTEMPT_STATUS_LABEL,
-  PAPER_KIND_LABEL,
   attemptStatusTone,
   formatAnswer,
   formatDateTime,
@@ -30,6 +29,7 @@ const explainLoading = ref(false)
 const explainText = ref('')
 const explainError = ref('')
 const explainStem = ref('')
+const explainAnswer = ref<AttemptAnswer | null>(null)
 
 const correctCount = computed(
   () => result.value?.answers.filter((answer) => answer.is_correct).length ?? 0,
@@ -61,6 +61,7 @@ async function explain(answer: AttemptAnswer): Promise<void> {
   explainText.value = ''
   explainError.value = ''
   explainStem.value = answer.stem
+  explainAnswer.value = answer
   try {
     const res = await questionsApi.explain(answer.question_id, answer.raw_answer)
     explainText.value = res.explanation ?? res.content ?? '暂无讲评内容。'
@@ -69,6 +70,11 @@ async function explain(answer: AttemptAnswer): Promise<void> {
   } finally {
     explainLoading.value = false
   }
+}
+
+/** 讲评失败原地重试：不离开结果页、不清空题目与答案上下文。 */
+async function regenerate(): Promise<void> {
+  if (explainAnswer.value) await explain(explainAnswer.value)
 }
 
 function answerText(answer: AttemptAnswer): string {
@@ -85,12 +91,6 @@ onMounted(load)
         <RouterLink to="/student/papers">试卷</RouterLink> · 作答结果
       </p>
       <h1>{{ result?.paper.title ?? '作答结果' }}</h1>
-      <p class="page-head__lede">
-        <template v-if="result">
-          {{ PAPER_KIND_LABEL[result.paper.kind] }} · 提交于 {{ formatDateTime(result.attempt.submitted_at) }}
-        </template>
-        <template v-else>查看得分、逐题对错与讲评。</template>
-      </p>
     </div>
     <div class="page-head__actions">
       <RouterLink class="btn" to="/student/papers">返回试卷</RouterLink>
@@ -163,12 +163,15 @@ onMounted(load)
         <div v-for="review in result.reviews" :key="review.id" class="notice">
           <div class="row row--between row--wrap">
             <span>
-              题目记录 #{{ review.answer_record_id }}：{{ formatScore(review.old_score) }} →
-              <b>{{ formatScore(review.new_score) }}</b>
+              得分 {{ formatScore(review.old_score) }} → <b>{{ formatScore(review.new_score) }}</b>
             </span>
-            <span class="small tertiary">{{ formatDateTime(review.created_at) }}</span>
+            <span class="small text-3">{{ formatDateTime(review.created_at) }}</span>
           </div>
           <p v-if="review.comment" class="small muted" style="margin-top: 4px">{{ review.comment }}</p>
+          <details class="tech-details">
+            <summary>技术详情</summary>
+            <span>题目记录 #{{ review.answer_record_id }} · 复核记录 #{{ review.id }}</span>
+          </details>
         </div>
       </div>
     </section>
@@ -176,11 +179,28 @@ onMounted(load)
 
   <BaseModal :open="explainOpen" title="题目讲评" wide @close="explainOpen = false">
     <p class="small muted" style="margin-bottom: 10px">{{ explainStem }}</p>
+    <div v-if="explainAnswer" class="answer-grid" style="margin-bottom: 10px">
+      <div><span>你的答案</span><b>{{ answerText(explainAnswer) }}</b></div>
+      <div><span>标准答案</span><b>{{ formatAnswer(explainAnswer.standard_answer, explainAnswer.type) }}</b></div>
+    </div>
     <p v-if="explainLoading" class="loading-line">正在生成讲评…</p>
-    <p v-else-if="explainError" class="notice notice--danger">{{ explainError }}</p>
+    <template v-else-if="explainError">
+      <p class="notice notice--danger">{{ explainError }}</p>
+      <p class="small text-3" style="margin-top: 6px">
+        题目与你的答案已保留，可直接重新生成，不会新建作答记录。
+      </p>
+    </template>
     <p v-else class="notice" style="white-space: pre-wrap; line-height: 1.75">{{ explainText }}</p>
     <template #footer>
       <BaseButton @click="explainOpen = false">关闭</BaseButton>
+      <BaseButton
+        v-if="explainError"
+        variant="primary"
+        :loading="explainLoading"
+        @click="regenerate"
+      >
+        重新生成
+      </BaseButton>
     </template>
   </BaseModal>
 </template>

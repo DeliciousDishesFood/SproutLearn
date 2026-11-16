@@ -1,15 +1,20 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Sparkles, Sprout } from 'lucide-vue-next'
+import { ChevronLeft, ChevronRight, ListChecks, Sparkles, Sprout, X } from 'lucide-vue-next'
 import BaseButton from '@/components/ui/BaseButton.vue'
+import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
 import AskSproutPanel from '@/components/business/AskSproutPanel.vue'
+import AttemptQuestionBody from '@/components/business/AttemptQuestionBody.vue'
+import AttemptAnswerSheet from '@/components/business/AttemptAnswerSheet.vue'
+import SaveStateIndicator from '@/components/business/SaveStateIndicator.vue'
 import { attemptsApi } from '@/api/attempts'
 import { isApiError, toUserMessage } from '@/api/client'
-import type { AttemptQuestion, AttemptResume, QuestionOption } from '@/api/contract'
+import type { AttemptQuestion, AttemptResume } from '@/api/contract'
 import { QUESTION_TYPE_LABEL, formatAnswer } from '@/utils/format'
 import { useAskSproutSelection } from '@/composables/useAskSproutSelection'
 import { useCountdown } from '@/composables/useCountdown'
+import { useFocusTrap } from '@/composables/useFocusTrap'
 import { useToast } from '@/composables/useToast'
 
 const route = useRoute()
@@ -28,6 +33,8 @@ const qScope = ref<HTMLElement | null>(null)
 const askOpen = ref(false)
 const askSelectedText = ref('')
 const askQuestionId = ref<number | null>(null)
+const sheetOpen = ref(false)
+const sheetPanel = ref<HTMLElement | null>(null)
 const pendingSaves = new Set<number>()
 const inflight = new Map<number, Promise<void>>()
 const versions = new Map<number, number>()
@@ -38,6 +45,15 @@ const askEnabled = computed(
 )
 const { state: selection, clear: clearSelection } = useAskSproutSelection(qScope, askEnabled)
 
+/* 手机答题卡抽屉：Tab 环绕、Escape 关闭、关闭后焦点回到触发按钮 */
+useFocusTrap({
+  active: () => sheetOpen.value,
+  container: sheetPanel,
+  onEscape: () => {
+    sheetOpen.value = false
+  },
+})
+
 const serverNow = computed(() => attempt.value?.server_now ?? null)
 const remainingSeconds = computed(() => attempt.value?.remaining_seconds ?? null)
 const { label: timerLabel, expired, warning } = useCountdown(serverNow, remainingSeconds)
@@ -47,9 +63,19 @@ const currentQuestion = computed<AttemptQuestion | null>(() => questions.value[c
 const answeredCount = computed(
   () => questions.value.filter((question) => isAnswered(question.id)).length,
 )
-const progressPercent = computed(() =>
-  questions.value.length ? Math.round((answeredCount.value / questions.value.length) * 100) : 0,
-)
+const answeredMap = computed(() => questions.value.map((question) => isAnswered(question.id)))
+const isLast = computed(() => currentIndex.value >= questions.value.length - 1)
+const paperKindLabel = computed(() => {
+  const kind = attempt.value?.paper.kind
+  if (kind === 'practice') return '练习'
+  if (kind === 'homework') return '作业'
+  if (kind === 'exam') return '考试'
+  return '作答'
+})
+
+function pad(value: number): string {
+  return String(value).padStart(2, '0')
+}
 
 function answerValue(questionId: number): unknown {
   return answers[String(questionId)]
@@ -61,37 +87,9 @@ function isAnswered(questionId: number): boolean {
   return value !== undefined && value !== null && value !== ''
 }
 
-function isChosen(question: AttemptQuestion, option: QuestionOption): boolean {
-  const value = answerValue(question.id)
-  if (question.type === 'multiple') {
-    return Array.isArray(value) && value.map(String).includes(option.key)
-  }
-  return String(value ?? '') === option.key
-}
-
-function choose(question: AttemptQuestion, option: QuestionOption): void {
-  if (expired.value || attempt.value?.status !== 'doing') return
-  if (question.type === 'multiple') {
-    const current = Array.isArray(answerValue(question.id))
-      ? (answerValue(question.id) as string[]).map(String)
-      : []
-    const next = current.includes(option.key)
-      ? current.filter((item) => item !== option.key)
-      : [...current, option.key]
-    setAnswer(question.id, next)
-  } else {
-    setAnswer(question.id, option.key)
-  }
-}
-
-function chooseJudge(question: AttemptQuestion, value: boolean): void {
+function applyAnswer(question: AttemptQuestion, value: unknown): void {
   if (expired.value || attempt.value?.status !== 'doing') return
   setAnswer(question.id, value)
-}
-
-function setBlank(question: AttemptQuestion, event: Event): void {
-  if (expired.value || attempt.value?.status !== 'doing') return
-  setAnswer(question.id, (event.target as HTMLTextAreaElement).value)
 }
 
 function setAnswer(questionId: number, value: unknown): void {
@@ -155,11 +153,64 @@ async function flushSaves(): Promise<void> {
   }
 }
 
+/** 保存失败的显式出口：重试所有 dirty / in-flight 答案，成功才回到已保存。 */
+async function retrySaves(): Promise<void> {
+  if (saveState.value === 'saving') return
+  saveState.value = 'saving'
+  try {
+    await flushSaves()
+    saveState.value = 'saved'
+    toast.success('答案已保存')
+  } catch {
+    saveState.value = 'error'
+    toast.error('仍有答案未保存，请检查网络后重试')
+  }
+}
+
+/* ---------- 手机滑动：滚动停止后同步题号，避免与 goTo 平滑滚动打架 ---------- */
+const swipeEl = ref<HTMLElement | null>(null)
+let suppressSlideSync = 0
+let slideTimer: number | null = null
+
+function readSlide(): void {
+  const el = swipeEl.value
+  if (!el || !el.clientWidth) return
+  if (Date.now() < suppressSlideSync) return
+  const index = Math.round(el.scrollLeft / el.clientWidth)
+  if (index >= 0 && index < questions.value.length && index !== currentIndex.value) {
+    currentIndex.value = index
+    clearSelection()
+    askOpen.value = false
+  }
+}
+
+function onSlideScroll(): void {
+  if (slideTimer) window.clearTimeout(slideTimer)
+  slideTimer = window.setTimeout(readSlide, 140)
+}
+
+function scrollToSlide(index: number): void {
+  const el = swipeEl.value
+  if (!el || !el.clientWidth) return
+  suppressSlideSync = Date.now() + 520
+  el.scrollTo({ left: index * el.clientWidth, behavior: 'smooth' })
+}
+
 function goTo(index: number): void {
   if (index < 0 || index >= questions.value.length) return
   currentIndex.value = index
   clearSelection()
   askOpen.value = false
+  scrollToSlide(index)
+}
+
+function openSheet(): void {
+  sheetOpen.value = true
+}
+
+function jumpFromSheet(index: number): void {
+  sheetOpen.value = false
+  goTo(index)
 }
 
 function openAsk(): void {
@@ -177,15 +228,26 @@ function closeAsk(): void {
   })
 }
 
+const submitOpen = ref(false)
+const exitOpen = ref(false)
+const unsavedOpen = ref(false)
+
+const submitMessage = computed(() => {
+  const unanswered = questions.value.length - answeredCount.value
+  return unanswered > 0
+    ? `还有 ${unanswered} 道题未作答，提交后不可修改。`
+    : '提交后试卷锁定，不可修改答案。'
+})
+
+function askSubmit(): void {
+  if (submitting.value) return
+  submitOpen.value = true
+}
+
 async function submit(): Promise<void> {
   if (submitting.value) return
-  const unanswered = questions.value.length - answeredCount.value
-  const message =
-    unanswered > 0
-      ? `还有 ${unanswered} 道题未作答，提交后不可修改。确定提交吗？`
-      : '提交后试卷锁定，不可修改答案。确定提交吗？'
-  if (!window.confirm(message)) return
   submitting.value = true
+  submitOpen.value = false
   try {
     try {
       await flushSaves()
@@ -209,13 +271,23 @@ async function submit(): Promise<void> {
   }
 }
 
-async function exit(): Promise<void> {
-  if (!window.confirm('退出后已保存的答案会保留，未保存的修改将丢失。确定退出吗？')) return
+function exit(): void {
+  exitOpen.value = true
+}
+
+async function confirmExit(): Promise<void> {
+  exitOpen.value = false
   try {
     await flushSaves()
   } catch {
-    if (!window.confirm('仍有答案未保存成功，仍要退出吗？')) return
+    unsavedOpen.value = true
+    return
   }
+  await router.push('/student/papers')
+}
+
+async function confirmExitUnsaved(): Promise<void> {
+  unsavedOpen.value = false
   await router.push('/student/papers')
 }
 
@@ -264,27 +336,34 @@ onBeforeUnmount(() => {
   window.removeEventListener('beforeunload', handleBeforeUnload)
   timers.forEach((timer) => window.clearTimeout(timer))
   timers.clear()
+  if (slideTimer) window.clearTimeout(slideTimer)
 })
 </script>
-
 <template>
-  <div class="practice-body">
-    <header class="topbar">
-      <RouterLink class="brand" to="/student">
-        <span class="brand__mark" aria-hidden="true"><Sprout :size="19" /></span>
-        <span class="brand__text">青芽 <em>SproutLearn</em></span>
+  <div class="practice-body att-page">
+    <header class="att-bar">
+      <RouterLink class="att-brand" to="/student">
+        <span class="att-brand__mark" aria-hidden="true"><Sprout :size="17" /></span>
+        <span class="att-brand__text">青芽 <em>SproutLearn</em></span>
       </RouterLink>
-      <div v-if="attempt" class="practice-title">
-        <strong>{{ attempt.paper.title }}</strong>
-        <span>第 {{ currentIndex + 1 }} 题 / 共 {{ questions.length }} 题</span>
+
+      <div v-if="attempt" class="att-paper">
+        <p class="att-paper__eyebrow">{{ paperKindLabel }} · 共 {{ questions.length }} 题</p>
+        <p class="att-paper__title">{{ attempt.paper.title }}</p>
       </div>
-      <div class="top-actions">
-        <span class="timer" :class="{ 'is-danger': warning || expired }">{{ timerLabel }}</span>
-        <button class="btn btn--ghost" type="button" @click="exit">退出</button>
+
+      <div v-if="attempt" class="att-meta">
+        <p class="att-progress">
+          <span>已答</span><b class="mono">{{ answeredCount }}</b>
+          <span class="mono att-progress__total">/ {{ questions.length }}</span>
+        </p>
+        <span class="att-timer mono" :class="{ 'is-danger': warning || expired }">{{ timerLabel }}</span>
+        <SaveStateIndicator :state="saveState" @retry="retrySaves" />
+        <button class="btn btn--ghost att-exit" type="button" @click="exit">退出</button>
       </div>
     </header>
 
-    <main class="practice">
+    <main class="att-main">
       <p v-if="errorText" class="notice notice--danger">{{ errorText }}</p>
       <p v-if="loading" class="loading-line">正在恢复作答…</p>
       <p v-if="attempt && expired" class="notice notice--warn">
@@ -292,143 +371,74 @@ onBeforeUnmount(() => {
       </p>
 
       <template v-if="attempt && currentQuestion">
-        <div class="practice-head">
-          <div>
-            <p class="eyebrow">
-              {{ attempt.paper.kind === 'practice' ? 'PRACTICE' : attempt.paper.kind === 'homework' ? 'HOMEWORK' : 'EXAM' }}
-              · {{ attempt.paper.title }}
-            </p>
-            <h1>{{ attempt.paper.title }}</h1>
-          </div>
-          <div class="progress" aria-label="答题进度">
-            <span class="progress__bar"><i :style="{ width: `${progressPercent}%` }" /></span>
-            <span class="progress__text">已答 {{ answeredCount }} / {{ questions.length }}</span>
-          </div>
-        </div>
-
-        <div class="practice-grid">
-          <section class="q-card">
-            <div class="q-meta">
-              <span class="q-index">第 {{ currentQuestion.seq }} 题</span>
-              <span class="tag">{{ QUESTION_TYPE_LABEL[currentQuestion.type] }}</span>
-              <span class="tag">{{ currentQuestion.knowledge_tag }}</span>
-              <span class="tag">{{ currentQuestion.score }} 分</span>
-              <span class="tag">
-                保存：{{ saveState === 'saving' ? '保存中…' : saveState === 'error' ? '保存失败，重试' : saveState === 'saved' ? '已保存' : '自动保存' }}
+        <div class="att-grid">
+          <section class="att-stage" aria-label="当前题目">
+            <div class="att-qmeta">
+              <span class="att-qmeta__index mono">
+                QUESTION {{ pad(currentQuestion.seq) }}
+                <span class="att-qmeta__of">/ {{ pad(questions.length) }}</span>
               </span>
+              <span class="att-qmeta__sep" aria-hidden="true" />
+              <span>{{ QUESTION_TYPE_LABEL[currentQuestion.type] }}</span>
+              <span class="att-qmeta__sep" aria-hidden="true" />
+              <span>{{ currentQuestion.knowledge_tag }}</span>
+              <span class="att-qmeta__sep" aria-hidden="true" />
+              <span>{{ currentQuestion.score }} 分</span>
             </div>
 
-            <div ref="qScope" class="q-scope" tabindex="-1">
-              <p class="q-stem">{{ currentQuestion.stem }}</p>
-
-              <div v-if="currentQuestion.type === 'judge'" class="q-options" role="radiogroup">
-                <button
-                  class="option"
-                  :class="{ 'is-selected': answerValue(currentQuestion.id) === true }"
-                  type="button"
-                  role="radio"
-                  :aria-checked="answerValue(currentQuestion.id) === true"
+            <div class="att-qbody att-qbody--desktop">
+              <div ref="qScope" class="q-scope" tabindex="-1">
+                <AttemptQuestionBody
+                  :question="currentQuestion"
+                  :value="answerValue(currentQuestion.id)"
                   :disabled="expired"
-                  @click="chooseJudge(currentQuestion, true)"
-                >
-                  <span class="option__key">✓</span><span class="option__text">正确</span>
-                </button>
-                <button
-                  class="option"
-                  :class="{ 'is-selected': answerValue(currentQuestion.id) === false }"
-                  type="button"
-                  role="radio"
-                  :aria-checked="answerValue(currentQuestion.id) === false"
-                  :disabled="expired"
-                  @click="chooseJudge(currentQuestion, false)"
-                >
-                  <span class="option__key">✕</span><span class="option__text">错误</span>
-                </button>
+                  @answer="applyAnswer(currentQuestion, $event)"
+                />
               </div>
+            </div>
 
-              <div
-                v-else-if="currentQuestion.options && currentQuestion.options.length"
-                class="q-options"
-                :role="currentQuestion.type === 'multiple' ? 'group' : 'radiogroup'"
-              >
-                <button
-                  v-for="option in currentQuestion.options"
-                  :key="option.key"
-                  class="option"
-                  :class="{ 'is-selected': isChosen(currentQuestion, option) }"
-                  type="button"
-                  :role="currentQuestion.type === 'multiple' ? 'checkbox' : 'radio'"
-                  :aria-checked="isChosen(currentQuestion, option)"
-                  :disabled="expired"
-                  @click="choose(currentQuestion, option)"
-                >
-                  <span class="option__key">{{ option.key }}</span>
-                  <span class="option__text">{{ option.text }}</span>
-                </button>
-              </div>
-
-              <div v-else class="blank-input">
-                <label class="field">
-                  <span>你的答案</span>
-                  <textarea
-                    :value="answerValue(currentQuestion.id) === undefined ? '' : String(answerValue(currentQuestion.id))"
-                    class="input"
-                    rows="3"
-                    placeholder="在这里填写答案"
+            <div class="att-qbody att-qbody--swipe" aria-label="滑动切换题目">
+              <div ref="swipeEl" class="att-swipe" @scroll="onSlideScroll">
+                <div v-for="question in questions" :key="question.id" class="att-slide">
+                  <div class="att-slide__head">
+                    <span class="att-slide__index mono">QUESTION {{ pad(question.seq) }}</span>
+                    <span class="att-slide__tag">
+                      {{ QUESTION_TYPE_LABEL[question.type] }} · {{ question.score }} 分
+                    </span>
+                  </div>
+                  <AttemptQuestionBody
+                    :question="question"
+                    :value="answerValue(question.id)"
                     :disabled="expired"
-                    @input="setBlank(currentQuestion, $event)"
+                    @answer="applyAnswer(question, $event)"
                   />
-                </label>
+                </div>
               </div>
             </div>
 
-            <div class="q-foot">
-              <button class="btn" type="button" :disabled="currentIndex === 0" @click="goTo(currentIndex - 1)">
-                上一题
-              </button>
-              <span class="q-foot__count">{{ currentIndex + 1 }} / {{ questions.length }}</span>
-              <button
-                class="btn btn--primary"
-                type="button"
-                :disabled="currentIndex >= questions.length - 1"
-                @click="goTo(currentIndex + 1)"
-              >
-                下一题
-              </button>
-            </div>
+            <p class="att-hint">
+              {{
+                attempt.paper.kind === 'practice'
+                  ? '选择后自动保存，切换题目不会丢失；选中题干或选项可以问问小芽。'
+                  : '选择后自动保存，切换题目不会丢失。'
+              }}
+            </p>
           </section>
 
-          <aside class="side-card">
-            <header class="panel__head">
-              <h2>答题卡</h2>
-              <span class="panel__meta">{{ saveState === 'saved' ? '已自动保存' : '自动保存已开启' }}</span>
-            </header>
-            <div class="sheet" aria-label="题号">
-              <button
-                v-for="(question, index) in questions"
-                :key="question.id"
-                class="sheet__dot"
-                :class="{
-                  'is-done': isAnswered(question.id) && index !== currentIndex,
-                  'is-current': index === currentIndex,
-                }"
-                type="button"
-                :aria-current="index === currentIndex ? 'step' : undefined"
-                @click="goTo(index)"
-              >
-                {{ index + 1 }}
-              </button>
+          <aside class="att-rail">
+            <AttemptAnswerSheet
+              :total="questions.length"
+              :current-index="currentIndex"
+              :answered="answeredMap"
+              :save-state="saveState"
+              @jump="goTo"
+            />
+            <div class="att-rail__action">
+              <BaseButton variant="primary" block :loading="submitting" @click="askSubmit">
+                提交试卷
+              </BaseButton>
+              <p class="att-rail__note">提交前会自动保存，提交后试卷锁定，无法修改答案。</p>
             </div>
-            <div class="legend">
-              <span><i class="legend__dot is-done" />已答</span>
-              <span><i class="legend__dot is-current" />当前</span>
-              <span><i class="legend__dot" />未答</span>
-            </div>
-            <BaseButton variant="primary" block :loading="submitting" @click="submit">提交试卷</BaseButton>
-            <p class="side-note">
-              提交前会自动保存；提交后试卷锁定，无法修改答案。
-              <template v-if="attempt.paper.kind === 'practice'">练习中可选中题干或选项，问问小芽。</template>
-            </p>
           </aside>
         </div>
       </template>
@@ -437,6 +447,30 @@ onBeforeUnmount(() => {
         {{ errorText || '没有可作答的题目。' }}
       </p>
     </main>
+
+    <footer v-if="attempt && currentQuestion" class="att-foot">
+      <button class="btn" type="button" :disabled="currentIndex === 0" @click="goTo(currentIndex - 1)">
+        <ChevronLeft :size="15" aria-hidden="true" />上一题
+      </button>
+
+      <button
+        class="att-sheet-trigger"
+        type="button"
+        :aria-expanded="sheetOpen"
+        aria-controls="attempt-sheet"
+        @click="openSheet"
+      >
+        <ListChecks :size="15" aria-hidden="true" />答题卡
+        <span class="mono">{{ pad(answeredCount) }}/{{ pad(questions.length) }}</span>
+      </button>
+
+      <span class="att-foot__pos mono">{{ pad(currentIndex + 1) }} / {{ pad(questions.length) }}</span>
+
+      <button v-if="!isLast" class="btn" type="button" @click="goTo(currentIndex + 1)">
+        下一题<ChevronRight :size="15" aria-hidden="true" />
+      </button>
+      <BaseButton v-else variant="primary" :loading="submitting" @click="askSubmit">提交试卷</BaseButton>
+    </footer>
 
     <button
       v-if="selection"
@@ -463,5 +497,534 @@ onBeforeUnmount(() => {
     <p class="sr-only" aria-live="polite">
       {{ currentQuestion ? `当前第 ${currentQuestion.seq} 题，答案 ${formatAnswer(answerValue(currentQuestion.id), currentQuestion.type)}` : '' }}
     </p>
+
+    <Teleport to="body">
+      <Transition name="att-drawer">
+        <div v-if="sheetOpen" class="att-drawer">
+          <div class="att-drawer__mask" @click="sheetOpen = false" />
+          <div
+            id="attempt-sheet"
+            ref="sheetPanel"
+            class="att-drawer__panel"
+            role="dialog"
+            aria-modal="true"
+            aria-label="答题卡"
+          >
+            <header class="att-drawer__head">
+              <h2 class="att-drawer__title">答题卡</h2>
+              <button class="att-drawer__close" type="button" aria-label="关闭答题卡" @click="sheetOpen = false">
+                <X :size="18" aria-hidden="true" />
+              </button>
+            </header>
+            <AttemptAnswerSheet
+              :total="questions.length"
+              :current-index="currentIndex"
+              :answered="answeredMap"
+              :save-state="saveState"
+              @jump="jumpFromSheet"
+            />
+            <BaseButton variant="primary" block :loading="submitting" @click="askSubmit">提交试卷</BaseButton>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <ConfirmDialog
+      :open="submitOpen"
+      title="提交试卷"
+      :message="submitMessage"
+      confirm-label="提交"
+      tone="primary"
+      :loading="submitting"
+      @confirm="submit"
+      @cancel="submitOpen = false"
+    />
+    <ConfirmDialog
+      :open="exitOpen"
+      title="退出作答"
+      message="已保存的答案会保留，未保存的修改将丢失。"
+      confirm-label="退出"
+      tone="primary"
+      @confirm="confirmExit"
+      @cancel="exitOpen = false"
+    />
+    <ConfirmDialog
+      :open="unsavedOpen"
+      title="仍有答案未保存"
+      message="退出后未保存的修改会丢失。仍要退出吗？"
+      confirm-label="仍要退出"
+      tone="danger"
+      @confirm="confirmExitUnsaved"
+      @cancel="unsavedOpen = false"
+    />
   </div>
 </template>
+
+<style scoped>
+/* 作答页：一个主角（当前题）+ 一条轨迹（作答位置），冷灰舞台只在本页使用 */
+.att-page {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--stage-cool);
+}
+
+/* ── 顶栏：完整试卷名只出现一次 ───────────────────────────── */
+.att-bar {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 24px;
+  padding: 14px 26px;
+  border-bottom: 1px solid var(--line-cool);
+  background: var(--stage-cool);
+}
+
+.att-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.att-brand__mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--graphite);
+  color: var(--lime);
+}
+
+.att-brand__text {
+  font-size: 14px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.att-brand__text em {
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 10px;
+  font-style: normal;
+  letter-spacing: 0.06em;
+  color: var(--text-3);
+}
+
+.att-paper {
+  min-width: 0;
+}
+
+.att-paper__eyebrow {
+  margin: 0;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--text-3);
+}
+
+.att-paper__title {
+  margin: 1px 0 0;
+  font-size: 13.5px;
+  font-weight: 650;
+  letter-spacing: -0.005em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.att-meta {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.att-progress {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+
+.att-progress b {
+  font-size: 15px;
+  color: var(--text);
+}
+
+.att-progress__total {
+  color: var(--text-3);
+}
+
+.att-timer {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 11px;
+  border: 1px solid var(--line-cool);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.att-timer.is-danger {
+  border-color: var(--danger-line);
+  color: var(--danger);
+}
+
+.att-exit {
+  height: 32px;
+  padding: 0 12px;
+}
+
+/* ── 主体 ─────────────────────────────────────────────────── */
+.att-main {
+  flex: 1;
+  overflow-y: auto;
+  padding: 30px 26px 26px;
+}
+
+.att-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 296px;
+  gap: 32px;
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
+.att-stage {
+  min-width: 0;
+  align-self: start;
+}
+
+.att-qmeta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--text-3);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+}
+
+.att-qmeta__index {
+  color: var(--text);
+  letter-spacing: 0.14em;
+}
+
+.att-qmeta__of {
+  color: var(--text-3);
+  letter-spacing: 0.06em;
+}
+
+.att-qmeta__sep {
+  width: 3px;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--line-strong);
+}
+
+.att-qbody--desktop {
+  margin-top: 16px;
+}
+
+.att-qbody--swipe {
+  display: none;
+}
+
+.att-hint {
+  margin: 18px 0 0;
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+
+.q-scope:focus {
+  outline: none;
+}
+
+/* ── 右侧：作答轨迹 + 答题卡 ─────────────────────────────── */
+.att-rail {
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid var(--line-cool);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.att-rail__action {
+  padding-top: 14px;
+  border-top: 1px solid var(--line-cool);
+}
+
+.att-rail__note {
+  margin: 9px 0 0;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--text-3);
+}
+
+/* ── 底栏 ─────────────────────────────────────────────────── */
+.att-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 26px calc(12px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--line-cool);
+  background: var(--stage-cool);
+}
+
+.att-foot__pos {
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+
+.att-sheet-trigger {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--line-cool);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.att-sheet-trigger .mono {
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+/* ── 手机答题卡抽屉 ──────────────────────────────────────── */
+.att-drawer {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: flex-end;
+}
+
+.att-drawer__mask {
+  position: absolute;
+  inset: 0;
+  background: rgba(11, 16, 13, 0.42);
+}
+
+.att-drawer__panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  max-height: 82dvh;
+  overflow-y: auto;
+  padding: 18px 18px calc(18px + env(safe-area-inset-bottom));
+  border-radius: 20px 20px 0 0;
+  background: var(--surface);
+}
+
+.att-drawer__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.att-drawer__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.att-drawer__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin: -10px -10px -10px 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.att-drawer__close:hover {
+  background: var(--surface-alt);
+}
+
+.att-drawer-enter-active,
+.att-drawer-leave-active {
+  transition: opacity 220ms ease;
+}
+
+.att-drawer-enter-active .att-drawer__panel,
+.att-drawer-leave-active .att-drawer__panel {
+  transition: transform 260ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.att-drawer-enter-from,
+.att-drawer-leave-to {
+  opacity: 0;
+}
+
+.att-drawer-enter-from .att-drawer__panel,
+.att-drawer-leave-to .att-drawer__panel {
+  transform: translateY(24px);
+}
+
+@media (min-width: 901px) {
+  .att-drawer {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .att-drawer-enter-active,
+  .att-drawer-leave-active,
+  .att-drawer-enter-active .att-drawer__panel,
+  .att-drawer-leave-active .att-drawer__panel {
+    transition: none;
+  }
+}
+
+/* ── 平板 ─────────────────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .att-grid {
+    grid-template-columns: minmax(0, 1fr) 262px;
+    gap: 22px;
+  }
+}
+
+/* ── 手机 ─────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .att-bar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px 12px;
+    padding: 10px 16px 12px;
+  }
+
+  .att-paper {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .att-paper__title {
+    font-size: 12.5px;
+  }
+
+  .att-meta {
+    grid-column: 2;
+    gap: 10px;
+  }
+
+  .att-progress,
+  .att-exit {
+    display: none;
+  }
+
+  .att-main {
+    padding: 18px 16px 20px;
+  }
+
+  .att-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+
+  .att-qbody--desktop {
+    display: none;
+  }
+
+  .att-qbody--swipe {
+    display: block;
+    margin-top: 12px;
+  }
+
+  /* 手机上题号信息由滑轨卡头承担，避免与页面级 meta 重复 */
+  .att-qmeta {
+    display: none;
+  }
+
+  .att-swipe {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    overscroll-behavior-x: contain;
+    /* 横向滚动容器需要自成一个绘制包含块，否则滑轨内容会被算进页面级滚动宽度 */
+    contain: paint;
+  }
+
+  .att-swipe::-webkit-scrollbar {
+    display: none;
+  }
+
+  .att-slide {
+    flex: 0 0 100%;
+    min-width: 0;
+    padding-right: 2px;
+    scroll-snap-align: start;
+  }
+
+  .att-slide__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 10px;
+    color: var(--text-3);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+  }
+
+  .att-slide__index {
+    color: var(--text);
+  }
+
+  .att-rail {
+    display: none;
+  }
+
+  .att-hint {
+    margin-top: 14px;
+    font-size: 11px;
+  }
+
+  .att-foot {
+    gap: 8px;
+    padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+  }
+
+  .att-foot .btn,
+  .att-foot :deep(.btn) {
+    flex: 1;
+    height: 44px;
+    padding: 0 12px;
+  }
+
+  .att-foot__pos {
+    display: none;
+  }
+
+  .att-sheet-trigger {
+    display: inline-flex;
+    flex: none;
+  }
+}
+</style>

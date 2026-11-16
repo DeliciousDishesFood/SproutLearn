@@ -92,7 +92,6 @@ onMounted(load)
     <div class="page-head__main">
       <p class="page-head__crumb">我的 · 通知</p>
       <h1>通知</h1>
-      <p class="page-head__lede">作业提醒、复核结果和老师公告都会出现在这里。</p>
     </div>
     <div class="page-head__actions">
       <BaseButton :disabled="!hasUnread" @click="readAll">全部已读</BaseButton>
@@ -126,7 +125,7 @@ onMounted(load)
     </div>
 
     <p v-if="loading" class="loading-line">正在读取通知…</p>
-    <EmptyState v-else-if="items.length === 0" title="暂无通知" description="新的作业和公告会出现在这里。" />
+    <EmptyState v-else-if="items.length === 0" title="暂无通知" />
     <template v-else>
       <div class="notice-list">
         <button

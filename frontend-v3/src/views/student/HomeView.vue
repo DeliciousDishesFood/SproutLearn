@@ -8,7 +8,7 @@ import BaseSkeleton from '@/components/ui/BaseSkeleton.vue'
 import { workbenchApi } from '@/api/workbench'
 import { notificationsApi } from '@/api/notifications'
 import { toUserMessage } from '@/api/client'
-import type { ActivityDay, QuoteResult, StudentWorkbench } from '@/api/contract'
+import type { ActivityDay, StudentWorkbench } from '@/api/contract'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 import {
@@ -24,7 +24,6 @@ const ui = useUiStore()
 
 const workbench = ref<StudentWorkbench | null>(null)
 const activity = ref<ActivityDay[]>([])
-const quote = ref<QuoteResult | null>(null)
 const loading = ref(true)
 const errorText = ref('')
 
@@ -43,7 +42,7 @@ async function load(): Promise<void> {
   try {
     const [summary, activityResult] = await Promise.all([
       workbenchApi.student(),
-      workbenchApi.studentActivity(12),
+      workbenchApi.studentActivity(52),
     ])
     workbench.value = summary
     activity.value = activityResult.items ?? activityResult.activity ?? []
@@ -51,11 +50,6 @@ async function load(): Promise<void> {
     errorText.value = toUserMessage(error)
   } finally {
     loading.value = false
-  }
-  try {
-    quote.value = await workbenchApi.quote()
-  } catch {
-    quote.value = null
   }
   try {
     const unread = await notificationsApi.unreadCount()
@@ -73,7 +67,6 @@ onMounted(load)
     <div class="page-head__main">
       <p class="page-head__crumb">{{ todayLabel() }}<template v-if="auth.student?.class_name"> · {{ auth.student.class_name }}</template></p>
       <h1>{{ greeting() }}，{{ auth.displayName }}</h1>
-      <p class="page-head__lede">今天也把一点点进步，攒成看得见的成长。</p>
     </div>
     <div class="page-head__actions">
       <RouterLink class="btn" to="/student/growth">我的成长</RouterLink>
@@ -97,9 +90,6 @@ onMounted(load)
           <span class="stat__value">Lv.{{ level?.level ?? 1 }}</span>
           <span class="stat__delta">{{ level?.title ?? '青芽' }}</span>
         </div>
-        <p class="stat__hint">
-          {{ level?.next_min_xp ? `距离下一级还需 ${level.xp_to_next ?? 0} XP` : '已达最高等级' }}
-        </p>
       </article>
       <article class="stat">
         <div class="stat__label">累计经验</div>
@@ -107,7 +97,6 @@ onMounted(load)
           <span class="stat__value">{{ workbench.xp_total }}</span>
           <span class="stat__delta stat__delta--soft">XP</span>
         </div>
-        <p class="stat__hint">今日 +{{ workbench.today_xp }} XP</p>
       </article>
       <article class="stat">
         <div class="stat__label">连续学习</div>
@@ -115,7 +104,6 @@ onMounted(load)
           <span class="stat__value">{{ workbench.streak_days }}</span>
           <span class="stat__delta stat__delta--soft">天</span>
         </div>
-        <p class="stat__hint">保持连续，经验和等级都会跟上</p>
       </article>
       <article class="stat">
         <div class="stat__label">今日 XP</div>
@@ -124,90 +112,79 @@ onMounted(load)
           <span class="stat__delta">上限 {{ today?.cap ?? 0 }}</span>
         </div>
         <div class="progress__bar" style="margin-top: 8px">
-          <i :style="{ width: `${capPercent}%` }" />
+          <i :style="{ transform: `scaleX(${capPercent / 100})` }" />
         </div>
-        <p class="stat__hint">
-          登录 {{ today?.login_xp ?? 0 }} · 练习 {{ today?.practice_xp ?? 0 }} · 提交
-          {{ today?.submission_xp ?? 0 }}
-        </p>
       </article>
     </section>
 
-    <div class="columns">
-      <section class="card">
-        <header class="card__head">
-          <h2>待办试卷</h2>
-          <RouterLink class="card__link" to="/student/papers">查看全部</RouterLink>
-        </header>
-        <EmptyState
-          v-if="pending.length === 0"
-          title="暂无待办"
-          description="老师发布新的练习后，会出现在这里。"
-          action-label="看看已完成"
-          @action="$router.push('/student/papers')"
-        />
-        <div v-else class="table" style="margin-top: 10px">
-          <div class="table__head" aria-hidden="true"><span>试卷</span><span>用途</span><span>截止</span></div>
-          <RouterLink
-            v-for="paper in pending"
-            :key="paper.id"
-            class="table__row"
-            :to="`/student/papers?paper=${paper.id}`"
-          >
-            <span class="table__main">
-              <strong>{{ paper.title }}</strong>
-              <em>{{ paper.question_count }} 题 · {{ paper.duration_minutes > 0 ? `${paper.duration_minutes} 分钟` : '不限时' }}</em>
-            </span>
-            <span class="table__meta" style="text-align: left">
-              {{ paper.kind === 'practice' ? '练习' : paper.kind === 'homework' ? '作业' : '考试' }}
-            </span>
-            <span class="table__meta">{{ paper.due_at ? formatDateTime(paper.due_at) : '未设置截止' }}</span>
-          </RouterLink>
-        </div>
-      </section>
+    <section class="card">
+      <header class="card__head">
+        <h2>待办试卷</h2>
+        <RouterLink class="card__link" to="/student/papers">查看全部</RouterLink>
+      </header>
+      <EmptyState
+        v-if="pending.length === 0"
+        title="暂无待办"
+        action-label="去练习"
+        @action="$router.push('/student/papers')"
+      />
+      <div v-else class="table" style="margin-top: 10px">
+        <div class="table__head" aria-hidden="true"><span>试卷</span><span>用途</span><span>截止</span></div>
+        <RouterLink
+          v-for="paper in pending"
+          :key="paper.id"
+          class="table__row"
+          :to="`/student/papers?paper=${paper.id}`"
+        >
+          <span class="table__main">
+            <strong>{{ paper.title }}</strong>
+            <em>{{ paper.question_count }} 题 · {{ paper.duration_minutes > 0 ? `${paper.duration_minutes} 分钟` : '不限时' }}</em>
+          </span>
+          <span class="table__meta" style="text-align: left">
+            {{ paper.kind === 'practice' ? '练习' : paper.kind === 'homework' ? '作业' : '考试' }}
+          </span>
+          <span class="table__meta">{{ paper.due_at ? formatDateTime(paper.due_at) : '未设置截止' }}</span>
+        </RouterLink>
+      </div>
+    </section>
 
-      <section class="card card--heat">
-        <header class="card__head">
-          <h2>学习热力</h2>
-          <span class="card__meta">最近 12 周</span>
-        </header>
-        <HeatDots :days="activity" :weeks="12" role="student" />
-      </section>
-    </div>
+    <section class="card card--heat">
+      <header class="card__head">
+        <h2>学习热力</h2>
+        <span class="card__meta">最近 52 周</span>
+      </header>
+      <HeatDots :days="activity" :weeks="52" role="student" />
+    </section>
 
-    <div class="columns columns--even">
-      <section class="card">
-        <header class="card__head">
-          <h2>最近成绩</h2>
-          <RouterLink class="card__link" to="/student/growth">成长记录</RouterLink>
-        </header>
-        <p v-if="recent.length === 0" class="empty-block">还没有已完成的练习。</p>
-        <div v-else class="table" style="margin-top: 10px">
-          <div class="table__head" aria-hidden="true"><span>试卷</span><span>得分</span><span>状态</span></div>
-          <RouterLink
-            v-for="item in recent"
-            :key="item.attempt_id"
-            class="table__row"
-            :to="`/student/attempts/${item.attempt_id}/result`"
-          >
-            <span class="table__main">
-              <strong>{{ item.paper_title }}</strong>
-              <em>{{ formatDateTime(item.submitted_at) }}</em>
-            </span>
-            <span class="table__meta">{{ formatScore(item.total_score) }} / {{ formatScore(item.full_score) }}</span>
-            <BaseBadge :tone="item.needs_review ? 'amber' : 'lime'">
-              {{ item.needs_review ? '待复核' : ATTEMPT_STATUS_LABEL[item.status] }}
-            </BaseBadge>
-          </RouterLink>
-        </div>
-      </section>
-
-      <blockquote class="card quote-card">
-        <p>“{{ quote?.text ?? '把复杂讲简单，把简单讲深刻。' }}”</p>
-        <cite>{{ quote?.from ?? '青芽学习手记' }}</cite>
-      </blockquote>
-    </div>
-
-    <footer class="foot">青芽 SproutLearn · 学习台</footer>
+    <section class="card">
+      <header class="card__head">
+        <h2>最近成绩</h2>
+        <RouterLink class="card__link" to="/student/growth">成长记录</RouterLink>
+      </header>
+      <EmptyState
+        v-if="recent.length === 0"
+        title="还没有已完成的练习"
+        action-label="去练习"
+        @action="$router.push('/student/papers')"
+      />
+      <div v-else class="table" style="margin-top: 10px">
+        <div class="table__head" aria-hidden="true"><span>试卷</span><span>得分</span><span>状态</span></div>
+        <RouterLink
+          v-for="item in recent"
+          :key="item.attempt_id"
+          class="table__row"
+          :to="`/student/attempts/${item.attempt_id}/result`"
+        >
+          <span class="table__main">
+            <strong>{{ item.paper_title }}</strong>
+            <em>{{ formatDateTime(item.submitted_at) }}</em>
+          </span>
+          <span class="table__meta">{{ formatScore(item.total_score) }} / {{ formatScore(item.full_score) }}</span>
+          <BaseBadge :tone="item.needs_review ? 'amber' : 'lime'">
+            {{ item.needs_review ? '待复核' : ATTEMPT_STATUS_LABEL[item.status] }}
+          </BaseBadge>
+        </RouterLink>
+      </div>
+    </section>
   </template>
 </template>

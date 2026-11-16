@@ -68,8 +68,23 @@ services:
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2
     networks: [sproutlearn_net]
 
+  bot-worker:
+    build: ../backend
+    restart: always
+    env_file: ../.env
+    environment:
+      MYSQL_HOST: mysql
+      REDIS_HOST: redis
+      QDRANT_HOST: qdrant
+    depends_on:
+      mysql: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    command: python -m app.qq_bot_worker
+    networks: [sproutlearn_net]
+
   web:
-    build: ../frontend
+    # 新前端唯一生产入口；旧 frontend/ 仅保留历史参考。
+    build: ../frontend-v3
     restart: always
     ports:
       - "80:80"
