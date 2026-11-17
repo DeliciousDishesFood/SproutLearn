@@ -1,6 +1,6 @@
 """机器人通知幂等记录（bot_notice）。"""
 
-from sqlalchemy import Column, DateTime, ForeignKey, String, UniqueConstraint
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, UniqueConstraint, text
 
 from app.models.base import Base, bigint_unsigned, pk_bigint
 
@@ -22,3 +22,8 @@ class BotNotice(Base):
     sent_at = Column(DateTime, nullable=True)
     status = Column(String(16), nullable=False, default="pending", server_default="pending")
     message_id = Column(String(64), nullable=True)
+    reason = Column(String(32), nullable=True)
+    error_code = Column(String(32), nullable=True)
+    error_message = Column(String(255), nullable=True)
+    attempt_count = Column(Integer, nullable=False, default=0, server_default="0")
+    last_attempt_at = Column(DateTime, nullable=True, server_default=text("CURRENT_TIMESTAMP"))

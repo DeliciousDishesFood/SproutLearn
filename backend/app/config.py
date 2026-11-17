@@ -103,6 +103,9 @@ class Settings(BaseSettings):
     qq_bot_enabled: bool = False
     qq_bot_gateway_url: str = ""
     qq_bot_explain_timeout_seconds: int = 8
+    qq_bot_reply_max_chars: int = 300
+    qq_bot_llm_timeout_seconds: int = 6
+    qq_bot_llm_max_tokens: int = 700
 
     # ---------- 模型路由（M2A） ----------
     llm_chain: str = "amd,zhipu,deepseek"

@@ -17,6 +17,7 @@ from app.config import get_settings
 from app.deps import CurrentUser
 from app.exceptions import AppException, ErrorCode
 from app.models.class_bot_config import ClassBotConfig
+from app.models.bot_notice import BotNotice
 from app.schemas.bot import BotConfigUpdateRequest
 from app.services.class_service import require_active_class, require_owned_class
 from app.services.qq_bot import client as qq_client
@@ -181,12 +182,47 @@ def test_config(db: Session, current: CurrentUser, *, class_id: int) -> dict[str
         app_id[-4:],
         ok,
     )
+    last_notice = (
+        db.query(BotNotice)
+        .filter(BotNotice.class_id == class_id)
+        .order_by(BotNotice.id.desc())
+        .first()
+    )
+    last_notice_data = None
+    active_status = "unknown"
+    if last_notice is not None:
+        last_notice_data = {
+            "status": last_notice.status,
+            "reason": last_notice.reason,
+            "error_code": last_notice.error_code,
+            "error_message": last_notice.error_message,
+            "attempt_count": int(last_notice.attempt_count or 0),
+            "last_attempt_at": fmt_dt(last_notice.last_attempt_at),
+            "sent_at": fmt_dt(last_notice.sent_at),
+        }
+        if last_notice.status == "sent":
+            active_status = "sent"
+        elif last_notice.reason == "qq_permission_denied":
+            active_status = "qq_permission_denied"
+        elif last_notice.status == "failed":
+            active_status = "failed"
+        elif last_notice.status == "skipped":
+            active_status = "skipped"
+    group_tail = (config.group_openid or "")[-4:] if config.group_openid else None
     return {
         "ok": ok,
         "message": message,
         "expires_in": expires_in,
         "last_check_at": fmt_dt(config.last_check_at),
         "last_check_status": config.last_check_status,
+        "group_bound": bool(config.group_openid),
+        "group_openid_tail": group_tail,
+        "active_message_status": active_status,
+        "active_message_hint": (
+            "token/gateway 正常不代表群主动消息已获授权；请群主在手机 QQ 群设置中"
+            "开启机器人主动发言权限后再重试。"
+        ),
+        "last_notice": last_notice_data,
     }
 
 

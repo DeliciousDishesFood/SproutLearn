@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import os
 import time
 from pathlib import Path
 
@@ -29,12 +30,34 @@ def _db_check(engine) -> tuple[bool, str]:
             if row is None:
                 return False, "demo class 不存在"
             cfg = conn.execute(
-                text("SELECT enabled, group_openid FROM class_bot_config WHERE class_id=:id"),
+                text(
+                    "SELECT enabled, group_openid, binding_enabled, notify_assignment, "
+                    "notify_due_soon, allow_query_assignments, allow_query_scores, "
+                    "bot_chat_enabled, bot_chat_mode, bot_chat_max_chars "
+                    "FROM class_bot_config WHERE class_id=:id"
+                ),
                 {"id": row[0]},
             ).first()
             if cfg is None:
                 return False, "demo class_bot_config 不存在"
-            return True, f"ok class_id={row[0]} bot_enabled={cfg[0]} group={bool(cfg[1])}"
+            notice = conn.execute(
+                text(
+                    "SELECT status, reason, error_code, attempt_count, error_message "
+                    "FROM bot_notice WHERE class_id=:id ORDER BY id DESC LIMIT 1"
+                ),
+                {"id": row[0]},
+            ).first()
+            notice_text = "none"
+            if notice is not None:
+                notice_text = (
+                    f"status={notice[0]} reason={notice[1]} code={notice[2]} "
+                    f"attempts={notice[3]} message={notice[4] or '-'}"
+                )
+            return True, (
+                f"ok class_id={row[0]} bot_enabled={cfg[0]} group_tail={(cfg[1] or '')[-4:] or '-'} "
+                f"binding={cfg[2]} notify_assignment={cfg[3]} notify_due={cfg[4]} "
+                f"queries={cfg[5]}/{cfg[6]} chat={cfg[7]}/{cfg[8]}/{cfg[9]} last_notice=[{notice_text}]"
+            )
     except Exception as exc:  # noqa: BLE001
         return False, f"{type(exc).__name__}: {exc}"
 
@@ -71,6 +94,7 @@ def main() -> int:
     parser.add_argument("--worker", action="store_true")
     parser.add_argument("--sqlite", type=Path)
     parser.add_argument("--fake-redis", action="store_true")
+    parser.add_argument("--active-send", "--send-test", dest="active_send", action="store_true", help="显式发送一条真实主动消息，默认关闭")
     args = parser.parse_args()
     settings = get_settings()
     failed = False
@@ -88,6 +112,7 @@ def main() -> int:
     print(f"mode={'sqlite' if args.sqlite else 'configured-db'} redis={'fake' if args.fake_redis else 'configured'}")
     db_ok, db_msg = _db_check(db_engine)
     print(f"db {db_ok} {db_msg}")
+    print("active_message_hint=token/gateway 正常不代表群主动消息已授权；40034105 需群主在手机 QQ 群设置开启机器人主动发言")
     failed = failed or not db_ok
 
     redis_ok, redis_msg = _redis_check()
@@ -117,6 +142,46 @@ def main() -> int:
         except Exception as exc:  # noqa: BLE001
             print(f"online FAILED {type(exc).__name__} elapsed_ms={round((time.perf_counter()-started)*1000)}")
             failed = True
+
+    if args.active_send:
+        started = time.perf_counter()
+        if not args.online:
+            print("active_send FAILED: 需要同时传 --online")
+            failed = True
+        elif os.environ.get("QQ_ACTIVE_SEND_CONFIRM") != "YES":
+            print("active_send REFUSED: 需显式设置 QQ_ACTIVE_SEND_CONFIRM=YES")
+            failed = True
+        else:
+            try:
+                with db_engine.connect() as conn:
+                    row = conn.execute(
+                        text(
+                            "SELECT c.id, cfg.group_openid FROM `class` c "
+                            "JOIN class_bot_config cfg ON cfg.class_id=c.id "
+                            "WHERE c.class_code=:code"
+                        ),
+                        {"code": DEMO_CLASS},
+                    ).first()
+                if row is None or not row[1]:
+                    print("active_send FAILED: demo 群未绑定")
+                    failed = True
+                else:
+                    result = qq_client.send_group_message(
+                        row[1], "【青芽】主动消息权限测试，收到请忽略。"
+                    )
+                    print(
+                        f"active_send OK message_id={bool(result.get('message_id'))} "
+                        f"elapsed_ms={round((time.perf_counter()-started)*1000)}"
+                    )
+            except qq_client.QQBotError as exc:
+                print(
+                    f"active_send FAILED code={exc.code} status={exc.status} "
+                    f"elapsed_ms={round((time.perf_counter()-started)*1000)}"
+                )
+                failed = True
+            except Exception as exc:  # noqa: BLE001
+                print(f"active_send FAILED {type(exc).__name__}")
+                failed = True
 
     if args.worker:
         print("worker command: python -m app.qq_bot_worker")

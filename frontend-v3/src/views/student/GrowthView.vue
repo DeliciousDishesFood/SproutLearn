@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { Sprout } from 'lucide-vue-next'
+import BaseButton from '@/components/ui/BaseButton.vue'
 import HeatDots from '@/components/ui/HeatDots.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import { workbenchApi } from '@/api/workbench'
@@ -64,35 +65,32 @@ onMounted(load)
     </div>
   </header>
 
-  <p v-if="errorText" class="notice notice--danger">{{ errorText }}</p>
+  <div v-if="errorText" class="notice notice--danger notice--with-action">
+    <span>{{ errorText }}</span>
+    <BaseButton size="sm" @click="load">重试</BaseButton>
+  </div>
   <p v-if="loading" class="loading-line">正在读取成长记录…</p>
 
   <template v-else-if="growth">
-    <section class="card stack">
-      <header class="card__head">
-        <h2>等级进度</h2>
-        <span class="card__meta">{{ growth.xp_total }} XP</span>
-      </header>
-      <div class="row" style="align-items: center; gap: 14px">
-        <span class="avatar" style="width: 46px; height: 46px; font-size: 16px" aria-hidden="true">
-          <Sprout :size="20" />
-        </span>
+    <section class="growth-hero">
+      <header class="growth-hero__head">
         <div>
-          <p class="strong" style="font-size: 16px">Lv.{{ level?.level ?? 1 }} · {{ level?.title ?? '青芽' }}</p>
-          <p class="small tertiary">
-            累计 {{ growth.xp_total }} XP
-            <template v-if="level?.next_min_xp">· 距下一级还需 {{ level?.xp_to_next ?? 0 }} XP</template>
-            <template v-else>· 已达最高等级</template>
+          <p class="growth-hero__eyebrow">当前等级</p>
+          <p class="growth-hero__level">
+            <span class="growth-hero__badge" aria-hidden="true"><Sprout :size="16" /></span>
+            Lv.{{ level?.level ?? 1 }} · {{ level?.title ?? '青芽' }}
           </p>
         </div>
-      </div>
-      <div class="progress">
+        <span class="growth-hero__xp">{{ growth.xp_total }} XP</span>
+      </header>
+      <div class="growth-hero__progress">
         <span class="progress__bar"><i :style="{ transform: `scaleX(${progress / 100})` }" /></span>
-        <span class="progress__text">{{ progress }}%</span>
+        <span class="growth-hero__pct">{{ progress }}%</span>
       </div>
-      <div class="kv">
-        <span>当前等级起点：<b>{{ level?.min_xp ?? 0 }} XP</b></span>
-        <span v-if="level?.next_min_xp">下一等级：<b>Lv.{{ level?.next_level }} · {{ level?.next_min_xp }} XP</b></span>
+      <div class="growth-hero__meta">
+        <span>本等级起点 {{ level?.min_xp ?? 0 }} XP</span>
+        <span v-if="level?.next_min_xp">距下一级还需 {{ level?.xp_to_next ?? 0 }} XP</span>
+        <span v-else>已达最高等级</span>
       </div>
     </section>
 
@@ -118,7 +116,16 @@ onMounted(load)
           <tbody>
             <tr v-for="item in growth.ledger" :key="item.id">
               <td>{{ sourceLabel(item.source) }}</td>
-              <td class="muted">{{ item.note ?? '—' }}</td>
+              <td class="muted">
+                {{ item.note ?? '—' }}
+                <RouterLink
+                  v-if="item.ref_type === 'attempt' && item.ref_id"
+                  class="growth-ledger__link"
+                  :to="`/student/attempts/${item.ref_id}/result`"
+                >
+                  查看答卷
+                </RouterLink>
+              </td>
               <td class="num" :style="{ color: item.xp >= 0 ? 'var(--lime-text)' : 'var(--danger)' }">
                 {{ item.xp >= 0 ? '+' : '' }}{{ item.xp }}
               </td>

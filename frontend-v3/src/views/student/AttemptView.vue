@@ -372,7 +372,7 @@ onBeforeUnmount(() => {
 
       <template v-if="attempt && currentQuestion">
         <div class="att-grid">
-          <section class="att-stage" aria-label="当前题目">
+          <section ref="qScope" class="att-stage" aria-label="当前题目" tabindex="-1">
             <div class="att-qmeta">
               <span class="att-qmeta__index mono">
                 QUESTION {{ pad(currentQuestion.seq) }}
@@ -387,7 +387,7 @@ onBeforeUnmount(() => {
             </div>
 
             <div class="att-qbody att-qbody--desktop">
-              <div ref="qScope" class="q-scope" tabindex="-1">
+              <div class="q-scope">
                 <AttemptQuestionBody
                   :question="currentQuestion"
                   :value="answerValue(currentQuestion.id)"
@@ -745,7 +745,8 @@ onBeforeUnmount(() => {
   color: var(--text-3);
 }
 
-.q-scope:focus {
+.q-scope:focus,
+.att-stage:focus {
   outline: none;
 }
 

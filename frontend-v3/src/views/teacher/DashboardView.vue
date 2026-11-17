@@ -181,6 +181,16 @@ onMounted(async () => {
       </StatCard>
     </section>
 
+    <RouterLink
+      v-if="workbench && workbench.pending_review > 0"
+      class="dash-task"
+      :to="`/teacher/classes/${currentClassId}/review`"
+    >
+      <span class="dash-task__dot" aria-hidden="true" />
+      <span class="dash-task__text">待复核 <b>{{ workbench.pending_review }}</b> 题</span>
+      <span class="dash-task__link">去批改</span>
+    </RouterLink>
+
     <section class="card">
       <header class="card__head">
         <h2>最近试卷</h2>

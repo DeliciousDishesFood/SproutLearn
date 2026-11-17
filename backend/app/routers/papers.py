@@ -78,6 +78,17 @@ def withdraw_paper(
     return success(paper_service.withdraw_paper(db, current, paper_id=paper_id))
 
 
+@router.post("/papers/{paper_id}/group-notice/retry")
+@router.post("/papers/{paper_id}/notify")
+def retry_group_notice(
+    paper_id: int,
+    current: CurrentUser = Depends(require_teacher),
+    db: Session = Depends(get_db),
+):
+    """教师显式重试主动作业通知；不重发历史批量、不改试卷状态。"""
+    return success(paper_service.retry_group_notice(db, current, paper_id=paper_id))
+
+
 @router.post("/papers/{paper_id}/publish")
 def publish_paper(
     paper_id: int,

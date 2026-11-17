@@ -35,6 +35,9 @@ const capPercent = computed(() => {
   if (!today.value || today.value.cap <= 0) return 0
   return Math.min(100, Math.round((today.value.total_xp / today.value.cap) * 100))
 })
+const levelPercent = computed(() =>
+  Math.min(100, Math.max(0, Math.round(level.value?.progress_pct ?? 0))),
+)
 
 async function load(): Promise<void> {
   loading.value = true
@@ -74,7 +77,10 @@ onMounted(load)
     </div>
   </header>
 
-  <p v-if="errorText" class="notice notice--danger">{{ errorText }}</p>
+  <div v-if="errorText" class="notice notice--danger notice--with-action">
+    <span>{{ errorText }}</span>
+    <BaseButton size="sm" @click="load">重试</BaseButton>
+  </div>
   <template v-if="loading">
     <div class="stats">
       <div v-for="index in 4" :key="index" class="skeleton stat-skeleton" />
@@ -84,11 +90,19 @@ onMounted(load)
 
   <template v-else-if="workbench">
     <section class="stats">
-      <article class="stat">
-        <div class="stat__label"><span class="stat__icon" aria-hidden="true"><Sprout :size="15" /></span>当前等级</div>
+      <article class="stat stat--focus">
+        <div class="stat__label">
+          <span class="stat__icon stat__icon--focus" aria-hidden="true"><Sprout :size="15" /></span>当前等级
+        </div>
         <div class="stat__row">
           <span class="stat__value">Lv.{{ level?.level ?? 1 }}</span>
-          <span class="stat__delta">{{ level?.title ?? '青芽' }}</span>
+          <span class="stat__delta stat__delta--focus">{{ level?.title ?? '青芽' }}</span>
+        </div>
+        <div class="stat__focus-progress">
+          <span class="progress__bar"><i :style="{ transform: `scaleX(${levelPercent / 100})` }" /></span>
+          <span class="stat__focus-note">
+            {{ level?.next_min_xp ? `距下一级还需 ${level?.xp_to_next ?? 0} XP` : '已达最高等级' }}
+          </span>
         </div>
       </article>
       <article class="stat">
@@ -143,7 +157,7 @@ onMounted(load)
           <span class="table__meta" style="text-align: left">
             {{ paper.kind === 'practice' ? '练习' : paper.kind === 'homework' ? '作业' : '考试' }}
           </span>
-          <span class="table__meta">{{ paper.due_at ? formatDateTime(paper.due_at) : '未设置截止' }}</span>
+          <span class="table__meta">{{ paper.due_at ? `截止 ${formatDateTime(paper.due_at)}` : '不限时' }}</span>
         </RouterLink>
       </div>
     </section>

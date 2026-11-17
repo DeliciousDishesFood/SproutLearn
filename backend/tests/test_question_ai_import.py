@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from types import SimpleNamespace
 
 from app.models.question import Question
@@ -203,6 +204,7 @@ def test_ai_preview_permissions_and_max_questions(client, teacher_token, klass, 
 
 def test_ai_preview_rate_limit(client, teacher_token, klass, monkeypatch):
     _fake_llm(monkeypatch, VALID_JSON)
+    monkeypatch.setattr(question_ai_import, "now_naive", lambda: datetime(2026, 1, 1, 12, 0, 0))
     for _ in range(3):
         response = _upload(client, teacher_token, klass["id"])
         assert response.status_code == 200, response.text

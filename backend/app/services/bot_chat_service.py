@@ -20,6 +20,7 @@ from app.utils import cache_keys
 
 UNKNOWN_HELP = "未识别命令。发送“帮助”查看可用命令。"
 UNAVAILABLE = "我暂时没查到，换个问法或发送 帮助。"
+TIMEOUT_HELP = "这个问题查得有点久，请把问题缩短到一句话再试，或发送 帮助。"
 RATE_LIMITED = "请 10 秒后再问，避免刷屏。"
 
 _SMALL_TALK_RE = re.compile(
@@ -90,6 +91,17 @@ def split_for_qq(text: str, *, limit: int = _QQ_CHUNK_CHARS) -> list[str]:
     return chunks
 
 
+def _cap_for_qq(text: str, limit: int) -> str:
+    body = format_for_qq(text)
+    if len(body) <= limit:
+        return body
+    window = body[: max(1, limit - 1)]
+    cut = max(window.rfind("。"), window.rfind("！"), window.rfind("？"), window.rfind("\n"))
+    if cut >= int(limit * 0.6):
+        return window[: cut + 1].rstrip() + "…"
+    return window.rstrip() + "…"
+
+
 def _redis():
     from app.redis_client import get_redis_client
 
@@ -135,8 +147,8 @@ def _allow(openid: str) -> bool:
         return True
 
 
-def _race_chat(router, messages: list[dict[str, str]], **kwargs) -> LLMResult:
-    """多个 provider 并行竞速，先成功者胜；整体等待上限由 provider timeout 控制。"""
+def _race_chat(router, messages: list[dict[str, str]], *, timeout_seconds: int = 9, **kwargs) -> LLMResult:
+    """多个 provider 并行竞速，先成功者胜；整体等待上限由调用方传入。"""
     providers = list(getattr(router, "providers", []) or [])
     if len(providers) < 2:
         return router.chat(messages, **kwargs)
@@ -147,7 +159,7 @@ def _race_chat(router, messages: list[dict[str, str]], **kwargs) -> LLMResult:
     pool = ThreadPoolExecutor(max_workers=len(providers), thread_name_prefix="bot-llm")
     futures = {pool.submit(provider.chat, messages, **kwargs): provider.name for provider in providers}
     try:
-        for future in as_completed(futures, timeout=9):
+        for future in as_completed(futures, timeout=timeout_seconds):
             name = futures[future]
             try:
                 result = future.result()
@@ -181,7 +193,8 @@ def answer(
         return _SMALL_TALK_REPLY
     if not _allow(openid):
         return RATE_LIMITED
-    max_chars = max(100, min(2000, int(config.bot_chat_max_chars or 1200)))
+    cap = max(100, int(getattr(get_settings(), "qq_bot_reply_max_chars", 300)))
+    max_chars = max(100, min(cap, int(config.bot_chat_max_chars or 1200)))
     chunks: list[KnowledgeChunk] = []
     if mode != "free":
         try:
@@ -212,7 +225,7 @@ def answer(
             # 群聊问答并行竞速：整体约 8 秒内拿到第一个可用回答
             settings = settings.model_copy(
                 update={
-                    "llm_timeout_seconds": 8,
+                    "llm_timeout_seconds": max(3, int(getattr(settings, "qq_bot_llm_timeout_seconds", 6))),
                     "llm_chain": "deepseek,amd,zhipu",
                 }
             )
@@ -226,7 +239,11 @@ def answer(
                 {"role": "user", "content": user},
             ],
             temperature=0.3,
-            max_tokens=min(1200, max(96, max_chars)),
+            max_tokens=min(
+                max(96, int(getattr(settings, "qq_bot_llm_max_tokens", 700))),
+                max(128, max_chars * 2),
+            ),
+            timeout_seconds=max(3, int(getattr(settings, "qq_bot_llm_timeout_seconds", 6))),
         )
         content = (result.content or "").strip()
         if not content:
@@ -237,8 +254,14 @@ def answer(
             mode,
             round((time.perf_counter() - started) * 1000, 1),
         )
-        # 给模型留出把一句话讲完的空间；超长时由 gateway 按语义分条，不在这里硬断句
-        return format_for_qq(content)[: max_chars * 2]
+        return _cap_for_qq(content, max_chars)
+    except AllProvidersFailed as exc:
+        attempts = getattr(exc, "attempts", []) or []
+        if any(str(item.get("error")) == "race_timeout" for item in attempts):
+            logger.warning("bot chat timeout openid={} elapsed_ms={}", openid, round((time.perf_counter() - started) * 1000, 1))
+            return TIMEOUT_HELP
+        logger.warning("bot chat providers failed openid={} errors={}", openid, len(attempts))
+        return UNAVAILABLE
     except Exception as exc:  # noqa: BLE001 - 机器人不能因 LLM 失败抛栈
         logger.warning("bot chat llm failed openid={} error={}", openid, type(exc).__name__)
         return UNAVAILABLE

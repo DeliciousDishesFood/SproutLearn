@@ -423,10 +423,23 @@ def publish_paper(db: Session, current: CurrentUser, *, paper_id: int) -> dict[s
         db.rollback()
         raise
     db.refresh(paper)
-    group_notice = bot_notifier.send_assignment_published(db, paper)
+    notice_detail = bot_notifier.send_assignment_published_detail(db, paper)
     detail = paper_detail(db, current, paper_id=paper.id)
-    detail["group_notice"] = group_notice
+    detail["group_notice"] = notice_detail["status"]
+    detail["group_notice_detail"] = notice_detail
     return detail
+
+
+def retry_group_notice(
+    db: Session, current: CurrentUser, *, paper_id: int
+) -> dict[str, Any]:
+    """教师显式重试主动作业通知；不重新发布/不改试卷状态。"""
+    paper = _require_paper_for_teacher(db, paper_id, current.user_id)
+    require_active_class(db, paper.class_id, current.user_id)
+    if paper.status != "published":
+        raise AppException(ErrorCode.PAPER_STATE_CONFLICT, "试卷未发布，不能重试群通知")
+    detail = bot_notifier.retry_assignment_notice(db, paper)
+    return {"paper_id": paper.id, "group_notice": detail["status"], "group_notice_detail": detail}
 
 
 def _attempt_item(attempt: Attempt, paper: Paper) -> dict[str, Any]:

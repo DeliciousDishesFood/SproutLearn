@@ -111,27 +111,30 @@ onBeforeUnmount(stopTimer)
   <p v-if="errorText" class="notice notice--danger">{{ errorText }}</p>
   <p v-if="loading" class="loading-line">正在读取账号…</p>
 
-  <div v-else class="columns">
-    <section class="card stack">
-      <header class="card__head"><h2>账号信息</h2></header>
-      <div class="row" style="gap: 12px">
-        <span class="avatar" style="width: 42px; height: 42px; font-size: 15px">
-          {{ auth.displayName.slice(0, 1) }}
-        </span>
-        <div>
-          <p class="strong">{{ auth.displayName }}</p>
-          <p class="small tertiary">{{ student?.class_name ?? '我的班级' }} · 学号 {{ student?.student_no ?? '—' }}</p>
+  <div v-else class="settings-page">
+    <div class="columns">
+      <section class="card stack">
+        <header class="card__head"><h2>账号信息</h2></header>
+        <div class="settings-profile">
+          <span class="avatar" style="width: 42px; height: 42px; font-size: 15px">
+            {{ auth.displayName.slice(0, 1) }}
+          </span>
+          <div class="settings-profile__meta">
+            <p class="strong">{{ auth.displayName }}</p>
+            <p class="small text-3">
+              {{ student?.class_name ?? '我的班级' }} · 学号 {{ student?.student_no ?? '—' }}
+            </p>
+          </div>
         </div>
-      </div>
-      <div class="kv">
-        <span>班级编号：<b class="mono">{{ student?.class_code ?? '—' }}</b></span>
-        <span>等级：<b>Lv.{{ student?.level ?? 1 }}</b></span>
-        <span>累计经验：<b>{{ student?.xp_total ?? 0 }} XP</b></span>
-      </div>
-      <RouterLink class="btn btn--sm" to="/student/growth" style="align-self: flex-start">
-        查看成长记录
-      </RouterLink>
-    </section>
+        <div class="kv">
+          <span>班级编号：<b class="mono">{{ student?.class_code ?? '—' }}</b></span>
+          <span>等级：<b>Lv.{{ student?.level ?? 1 }}</b></span>
+          <span>累计经验：<b>{{ student?.xp_total ?? 0 }} XP</b></span>
+        </div>
+        <RouterLink class="btn btn--sm" to="/student/growth" style="align-self: flex-start">
+          查看成长记录
+        </RouterLink>
+      </section>
 
     <section class="card stack">
       <header class="card__head">
@@ -152,7 +155,7 @@ onBeforeUnmount(stopTimer)
         </p>
         <div class="row row--wrap">
           <BaseButton variant="primary" :loading="generating" @click="generate">生成绑定码</BaseButton>
-          <span v-if="code" class="small tertiary" aria-live="polite">
+          <span v-if="code" class="small text-3" aria-live="polite">
             {{ left > 0 ? `${Math.floor(left / 60)} 分 ${left % 60} 秒后失效` : '已过期，请重新生成' }}
           </span>
         </div>
@@ -162,12 +165,14 @@ onBeforeUnmount(stopTimer)
         </div>
       </template>
     </section>
-  </div>
+    </div>
 
-  <section v-if="!loading" class="card stack" style="margin-top: 16px">
-    <header class="card__head"><h2>账号安全</h2></header>
-    <ChangePasswordForm />
-  </section>
+    <section class="card stack" style="margin-top: 16px">
+      <header class="card__head"><h2>账号安全</h2></header>
+      <p class="small text-3">修改密码后，其他设备需要重新登录。</p>
+      <ChangePasswordForm />
+    </section>
+  </div>
 
   <ConfirmDialog
     :open="unbindOpen"

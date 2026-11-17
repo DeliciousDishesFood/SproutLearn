@@ -473,6 +473,22 @@ export interface PaperDetail extends PaperItem {
 /** 发布响应：在试卷详情上附带班级群通知结果。 */
 export interface PaperPublishResult extends PaperDetail {
   group_notice?: GroupNoticeStatus
+  group_notice_detail?: GroupNoticeDetail
+}
+
+export interface GroupNoticeDetail {
+  status: GroupNoticeStatus
+  reason: string
+  error_code: string | null
+  message: string
+  attempt_count: number
+  sent_at: string | null
+}
+
+export interface PaperGroupNoticeRetryResult {
+  paper_id: number
+  group_notice: GroupNoticeStatus
+  group_notice_detail: GroupNoticeDetail
 }
 
 export interface PaperCreatePayload {
@@ -837,6 +853,19 @@ export interface BotTestResult {
   expires_in: number | null
   last_check_at: string | null
   last_check_status: string
+  group_bound?: boolean
+  group_openid_tail?: string | null
+  active_message_status?: 'sent' | 'failed' | 'skipped' | 'qq_permission_denied' | 'unknown' | string
+  active_message_hint?: string
+  last_notice?: {
+    status: string
+    reason: string | null
+    error_code: string | null
+    error_message: string | null
+    attempt_count: number
+    last_attempt_at: string | null
+    sent_at: string | null
+  } | null
 }
 
 export interface GroupBindCode {

@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 import BaseBadge from '@/components/ui/BaseBadge.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseModal from '@/components/ui/BaseModal.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 import { attemptsApi } from '@/api/attempts'
 import { questionsApi } from '@/api/questions'
 import { isApiError, toUserMessage } from '@/api/client'
@@ -16,6 +17,8 @@ import {
   formatScore,
 } from '@/utils/format'
 
+type ResultFilter = 'all' | 'wrong' | 'review'
+
 const route = useRoute()
 const attemptId = computed(() => Number(route.params.attemptId))
 
@@ -23,6 +26,7 @@ const result = ref<AttemptResult | null>(null)
 const loading = ref(true)
 const errorText = ref('')
 const blockedText = ref('')
+const filter = ref<ResultFilter>('all')
 
 const explainOpen = ref(false)
 const explainLoading = ref(false)
@@ -30,12 +34,43 @@ const explainText = ref('')
 const explainError = ref('')
 const explainStem = ref('')
 const explainAnswer = ref<AttemptAnswer | null>(null)
+const explainEngine = ref('')
+const explainDegraded = ref(false)
 
-const correctCount = computed(
-  () => result.value?.answers.filter((answer) => answer.is_correct).length ?? 0,
+const answers = computed(() => result.value?.answers ?? [])
+const correctCount = computed(() => answers.value.filter((answer) => answer.is_correct).length)
+const pendingCount = computed(() => answers.value.filter((answer) => answer.needs_review).length)
+const wrongCount = computed(
+  () => answers.value.filter((answer) => !answer.needs_review && !answer.is_correct).length,
 )
-const pendingCount = computed(
-  () => result.value?.answers.filter((answer) => answer.needs_review).length ?? 0,
+
+const filterOptions = computed(() => [
+  { key: 'all' as const, label: '全部', count: answers.value.length },
+  { key: 'wrong' as const, label: '错题', count: wrongCount.value },
+  { key: 'review' as const, label: '待复核', count: pendingCount.value },
+])
+
+const filteredAnswers = computed(() => {
+  if (filter.value === 'wrong') {
+    return answers.value.filter((answer) => !answer.needs_review && !answer.is_correct)
+  }
+  if (filter.value === 'review') {
+    return answers.value.filter((answer) => answer.needs_review)
+  }
+  return answers.value
+})
+
+const explainEngineLabel = computed(() => {
+  if (explainDegraded.value) return '降级内容'
+  if (explainEngine.value === 'template') return '模板讲评'
+  if (explainEngine.value === 'llm') return 'AI 生成'
+  return ''
+})
+
+const explainTone = computed(() =>
+  explainEngineLabel.value && explainEngine.value === 'llm' && !explainDegraded.value
+    ? 'lime'
+    : 'amber',
 )
 
 async function load(): Promise<void> {
@@ -60,11 +95,15 @@ async function explain(answer: AttemptAnswer): Promise<void> {
   explainLoading.value = true
   explainText.value = ''
   explainError.value = ''
+  explainEngine.value = ''
+  explainDegraded.value = false
   explainStem.value = answer.stem
   explainAnswer.value = answer
   try {
     const res = await questionsApi.explain(answer.question_id, answer.raw_answer)
     explainText.value = res.explanation ?? res.content ?? '暂无讲评内容。'
+    explainEngine.value = res.engine ?? ''
+    explainDegraded.value = res.degraded === true
   } catch (error) {
     explainError.value = toUserMessage(error)
   } finally {
@@ -79,6 +118,15 @@ async function regenerate(): Promise<void> {
 
 function answerText(answer: AttemptAnswer): string {
   return formatAnswer(answer.raw_answer, answer.type)
+}
+
+/** 清理模型偶发返回的 Markdown 记号，保持纯文本渲染，不引入 v-html。 */
+function cleanPlainText(text: string): string {
+  return text
+    .replace(/^#{1,6}\s*/gm, '')
+    .replace(/\*\*|__|`/g, '')
+    .replace(/^\s*[-*•]\s+/gm, '• ')
+    .trim()
 }
 
 onMounted(load)
@@ -109,27 +157,62 @@ onMounted(load)
 
   <template v-else-if="result">
     <section class="result-hero">
-      <div>
-        <p class="eyebrow">SCORE</p>
+      <div class="result-hero__main">
+        <p class="result-hero__eyebrow">本次得分</p>
         <p class="result-hero__score">
           {{ formatScore(result.attempt.total_score) }}<small> / {{ formatScore(result.attempt.full_score) }}</small>
         </p>
+        <p class="result-hero__state">
+          <BaseBadge :tone="attemptStatusTone(result.attempt.status)">
+            {{ ATTEMPT_STATUS_LABEL[result.attempt.status] }}
+          </BaseBadge>
+        </p>
       </div>
-      <div class="kv">
-        <span>状态：<BaseBadge :tone="attemptStatusTone(result.attempt.status)">{{ ATTEMPT_STATUS_LABEL[result.attempt.status] }}</BaseBadge></span>
-        <span>正确：<b>{{ correctCount }} / {{ result.answers.length }}</b></span>
-        <span v-if="pendingCount > 0">待老师复核：<b>{{ pendingCount }} 题</b></span>
-        <span v-if="result.attempt.late">迟交：<b>是</b></span>
-      </div>
+      <dl class="result-metrics">
+        <div class="result-metrics__item">
+          <dt>正确</dt>
+          <dd>{{ correctCount }} / {{ answers.length }}</dd>
+        </div>
+        <div class="result-metrics__item">
+          <dt>待复核</dt>
+          <dd>{{ pendingCount }}</dd>
+        </div>
+        <div v-if="result.attempt.late" class="result-metrics__item">
+          <dt>提交</dt>
+          <dd>迟交</dd>
+        </div>
+      </dl>
     </section>
 
     <section class="card">
       <header class="card__head">
         <h2>逐题结果</h2>
-        <span class="card__meta">共 {{ result.answers.length }} 题</span>
+        <span class="card__meta">共 {{ answers.length }} 题</span>
       </header>
 
-      <article v-for="answer in result.answers" :key="answer.question_id" class="answer-item">
+      <div class="result-filter" role="group" aria-label="按作答结果筛选">
+        <BaseButton
+          v-for="option in filterOptions"
+          :key="option.key"
+          size="sm"
+          :variant="filter === option.key ? 'primary' : 'secondary'"
+          :aria-pressed="filter === option.key"
+          @click="filter = option.key"
+        >
+          {{ option.label }} {{ option.count }}
+        </BaseButton>
+        <span class="result-filter__hint">当前显示 {{ filteredAnswers.length }} 题</span>
+      </div>
+
+      <EmptyState
+        v-if="filteredAnswers.length === 0"
+        title="当前筛选下没有题目"
+        action-label="查看全部"
+        @action="filter = 'all'"
+      />
+
+      <template v-else>
+        <article v-for="answer in filteredAnswers" :key="answer.question_id" class="answer-item">
         <div class="answer-item__head">
           <div style="min-width: 0">
             <div class="row row--wrap" style="margin-bottom: 4px">
@@ -137,11 +220,14 @@ onMounted(load)
               <BaseBadge v-if="answer.needs_review" tone="amber">待老师复核</BaseBadge>
               <BaseBadge v-else-if="answer.is_correct" tone="lime">正确</BaseBadge>
               <BaseBadge v-else tone="danger">错误</BaseBadge>
-              <span class="small tertiary">{{ answer.knowledge_tag }} · 满分 {{ formatScore(answer.full_score) }}</span>
+              <span class="small text-3">{{ answer.knowledge_tag }} · 满分 {{ formatScore(answer.full_score) }}</span>
             </div>
             <p class="answer-item__stem">{{ answer.stem }}</p>
           </div>
-          <span class="strong num" style="white-space: nowrap">{{ formatScore(answer.score) }} 分</span>
+          <div class="answer-item__score">
+            <span class="strong num">{{ formatScore(answer.score) }} 分</span>
+            <span v-if="answer.needs_review" class="answer-item__adjust">分数可能调整</span>
+          </div>
         </div>
 
         <div class="answer-grid">
@@ -152,9 +238,16 @@ onMounted(load)
         <div v-if="answer.analysis" class="analysis-block">{{ answer.analysis }}</div>
 
         <div class="row" style="margin-top: 8px">
-          <BaseButton size="sm" @click="explain(answer)">看讲评</BaseButton>
+          <BaseButton
+            size="sm"
+            :variant="answer.is_correct && !answer.needs_review ? 'ghost' : 'primary'"
+            @click="explain(answer)"
+          >
+            看讲评
+          </BaseButton>
         </div>
       </article>
+      </template>
     </section>
 
     <section v-if="result.reviews.length" class="card">
@@ -179,18 +272,33 @@ onMounted(load)
 
   <BaseModal :open="explainOpen" title="题目讲评" wide @close="explainOpen = false">
     <p class="small muted" style="margin-bottom: 10px">{{ explainStem }}</p>
-    <div v-if="explainAnswer" class="answer-grid" style="margin-bottom: 10px">
+    <div v-if="explainAnswer" class="answer-grid" style="margin-bottom: 12px">
       <div><span>你的答案</span><b>{{ answerText(explainAnswer) }}</b></div>
       <div><span>标准答案</span><b>{{ formatAnswer(explainAnswer.standard_answer, explainAnswer.type) }}</b></div>
     </div>
-    <p v-if="explainLoading" class="loading-line">正在生成讲评…</p>
-    <template v-else-if="explainError">
-      <p class="notice notice--danger">{{ explainError }}</p>
-      <p class="small text-3" style="margin-top: 6px">
-        题目与你的答案已保留，可直接重新生成，不会新建作答记录。
-      </p>
-    </template>
-    <p v-else class="notice" style="white-space: pre-wrap; line-height: 1.75">{{ explainText }}</p>
+
+    <section v-if="explainAnswer?.analysis" class="explain-section">
+      <h3 class="explain-section__title">官方解析</h3>
+      <p class="explain-section__body">{{ cleanPlainText(explainAnswer.analysis) }}</p>
+    </section>
+
+    <section class="explain-section">
+      <h3 class="explain-section__title">
+        AI 讲评
+        <BaseBadge v-if="explainEngineLabel" :tone="explainTone">{{ explainEngineLabel }}</BaseBadge>
+      </h3>
+      <p class="explain-section__note">由 AI 生成，仅供学习参考。</p>
+
+      <p v-if="explainLoading" class="loading-line">正在生成讲评…</p>
+      <template v-else-if="explainError">
+        <p class="notice notice--danger">{{ explainError }}</p>
+        <p class="small text-3" style="margin-top: 6px">
+          题目与你的答案已保留，可直接重新生成，不会新建作答记录。
+        </p>
+      </template>
+      <p v-else class="explain-section__body">{{ cleanPlainText(explainText) }}</p>
+    </section>
+
     <template #footer>
       <BaseButton @click="explainOpen = false">关闭</BaseButton>
       <BaseButton
